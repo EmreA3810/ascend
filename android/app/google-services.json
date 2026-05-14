@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "700451722816",
+    "project_id": "ascend-eeaae",
+    "storage_bucket": "ascend-eeaae.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:700451722816:android:02b52c16aaf287c8e871a5",
+        "android_client_info": {
+          "package_name": "com.example.ascend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDYkyjxF1oNi1Qj9OB_HQT0jP15-QZLmxA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
