@@ -23,7 +23,7 @@ Bu doküman Ascend projesinin fikir aşamasından Play Store yayın sürecine ka
 - [x] Character profile ekranı oluştur
 - [x] Quest ekranı tasarla
 - [x] Pomodoro ekranı oluştur
-- [ ] Stats ekranı oluştur
+- [x] Stats ekranı oluştur
 - [x] Dark mode tasarımı yap
 
 ## 4. Core Gameplay Sistemleri
