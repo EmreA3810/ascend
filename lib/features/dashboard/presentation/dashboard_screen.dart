@@ -447,19 +447,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             ),
           ),
           GestureDetector(
-            onTap: () async {
-              final nextCompleted = !quest.isCompleted;
-              await ref.read(questRepositoryProvider).toggleQuest(uid, quest.id, nextCompleted);
-              
-              if (nextCompleted && mounted) {
-                XpGainPopup.show(
-                  context,
-                  xp: quest.xpReward,
-                  statName: quest.statBoost,
-                  statAmount: 1,
-                );
-              }
-            },
+            onTap: (quest.targetValue > 1 || const ['dk', 'set', 'sayfa', 'problem', 'bardak', 'seans'].contains(quest.unit))
+                ? () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Bu görev sayısal ilerlemelidir. Pomodoro veya antrenman tamamlayarak ilerletilebilir! ⚡'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                : () async {
+                    final nextCompleted = !quest.isCompleted;
+                    await ref.read(questRepositoryProvider).toggleQuest(uid, quest.id, nextCompleted);
+                    
+                    if (nextCompleted && mounted) {
+                      XpGainPopup.show(
+                        context,
+                        xp: quest.xpReward,
+                        statName: quest.statBoost,
+                        statAmount: 1,
+                      );
+                    }
+                  },
             child: AnimatedSwitcher(
               duration: const Duration(milliseconds: 250),
               child: isDone

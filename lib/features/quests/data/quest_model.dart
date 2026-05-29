@@ -12,6 +12,9 @@ class QuestModel {
   final DateTime? completedAt;
   final String statBoost; // 'focus', 'energy', 'knowledge', 'strength'
   final double progress; // 0.0 - 1.0
+  final int currentValue;
+  final int targetValue;
+  final String unit; // 'dk', 'set', 'sayfa', 'bardak', 'problem', 'adet'
 
   const QuestModel({
     required this.id,
@@ -24,6 +27,9 @@ class QuestModel {
     this.completedAt,
     required this.statBoost,
     required this.progress,
+    this.currentValue = 0,
+    this.targetValue = 1,
+    this.unit = 'adet',
   });
 
   factory QuestModel.fromMap(Map<String, dynamic> map, String docId) {
@@ -38,6 +44,9 @@ class QuestModel {
       completedAt: (map['completedAt'] as Timestamp?)?.toDate(),
       statBoost: map['statBoost'] as String? ?? 'focus',
       progress: (map['progress'] as num?)?.toDouble() ?? 0.0,
+      currentValue: (map['currentValue'] as num?)?.toInt() ?? 0,
+      targetValue: (map['targetValue'] as num?)?.toInt() ?? 1,
+      unit: map['unit'] as String? ?? 'adet',
     );
   }
 
@@ -51,6 +60,9 @@ class QuestModel {
         'completedAt': completedAt != null ? Timestamp.fromDate(completedAt!) : null,
         'statBoost': statBoost,
         'progress': progress,
+        'currentValue': currentValue,
+        'targetValue': targetValue,
+        'unit': unit,
       };
 
   QuestModel copyWith({
@@ -64,6 +76,9 @@ class QuestModel {
     DateTime? completedAt,
     String? statBoost,
     double? progress,
+    int? currentValue,
+    int? targetValue,
+    String? unit,
   }) {
     return QuestModel(
       id: id ?? this.id,
@@ -76,6 +91,9 @@ class QuestModel {
       completedAt: completedAt ?? this.completedAt,
       statBoost: statBoost ?? this.statBoost,
       progress: progress ?? this.progress,
+      currentValue: currentValue ?? this.currentValue,
+      targetValue: targetValue ?? this.targetValue,
+      unit: unit ?? this.unit,
     );
   }
 

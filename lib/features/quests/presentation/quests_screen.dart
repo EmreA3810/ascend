@@ -30,6 +30,19 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
     super.dispose();
   }
 
+  Future<void> _incrementProgress(String uid, QuestModel quest) async {
+    final willComplete = quest.currentValue + 1 >= quest.targetValue;
+    await ref.read(questRepositoryProvider).incrementQuestProgress(uid, quest.id, 1);
+    if (willComplete && mounted) {
+      XpGainPopup.show(
+        context,
+        xp: quest.xpReward,
+        statName: quest.statBoost,
+        statAmount: 1,
+      );
+    }
+  }
+
   Future<void> _onRefresh() async {
     ref.invalidate(dailyQuestsProvider);
     ref.invalidate(weeklyQuestsProvider);
@@ -404,24 +417,84 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
                       ),
                     ],
                   ),
+                  if (quest.targetValue > 1) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: LinearProgressIndicator(
+                              value: isDone ? 1.0 : (quest.currentValue / quest.targetValue).clamp(0.0, 1.0),
+                              backgroundColor: AppColors.background,
+                              valueColor: AlwaysStoppedAnimation<Color>(isDone ? AppColors.success : AppColors.primary),
+                              minHeight: 4,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '${isDone ? quest.targetValue : quest.currentValue}/${quest.targetValue} ${quest.unit}',
+                          style: GoogleFonts.inter(
+                            color: AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
+            if (!isDone && quest.targetValue > 1 && quest.unit.trim().toLowerCase() != 'dk') ...[
+              IconButton(
+                icon: const Icon(Icons.add_circle_outline, color: AppColors.primary, size: 28),
+                onPressed: () => _incrementProgress(uid, quest),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+              ),
+              const SizedBox(width: 4),
+            ],
+            // Edit button
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, color: AppColors.textSecondary, size: 20),
+              onPressed: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (ctx) => AddQuestBottomSheet(initialQuest: quest),
+                );
+              },
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            ),
+            const SizedBox(width: 12),
             // Checkbox
             GestureDetector(
-              onTap: () async {
-                final nextCompleted = !quest.isCompleted;
-                await ref.read(questRepositoryProvider).toggleQuest(uid, quest.id, nextCompleted);
-                
-                if (nextCompleted && mounted) {
-                  XpGainPopup.show(
-                    context,
-                    xp: quest.xpReward,
-                    statName: quest.statBoost,
-                    statAmount: 1,
-                  );
-                }
-              },
+              onTap: (quest.targetValue > 1 || const ['dk', 'set', 'sayfa', 'problem', 'bardak', 'seans'].contains(quest.unit))
+                  ? () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Bu görev sayısal ilerlemelidir. Pomodoro veya antrenman tamamlayarak ilerletilebilir! ⚡'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  : () async {
+                      final nextCompleted = !quest.isCompleted;
+                      await ref.read(questRepositoryProvider).toggleQuest(uid, quest.id, nextCompleted);
+                      
+                      if (nextCompleted && mounted) {
+                        XpGainPopup.show(
+                          context,
+                          xp: quest.xpReward,
+                          statName: quest.statBoost,
+                          statAmount: 1,
+                        );
+                      }
+                    },
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 250),
                 child: isDone
@@ -505,22 +578,54 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
                     ),
                   ),
                 ),
+                           if (!isDone && quest.targetValue > 1 && quest.unit.trim().toLowerCase() != 'dk') ...[
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline, color: Colors.orangeAccent, size: 26),
+                    onPressed: () => _incrementProgress(uid, quest),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                // Edit button
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined, color: AppColors.textSecondary, size: 18),
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (ctx) => AddQuestBottomSheet(initialQuest: quest),
+                    );
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
                 const SizedBox(width: 8),
                 // Checkbox
                 GestureDetector(
-                  onTap: () async {
-                    final nextCompleted = !quest.isCompleted;
-                    await ref.read(questRepositoryProvider).toggleQuest(uid, quest.id, nextCompleted);
-                    
-                    if (nextCompleted && mounted) {
-                      XpGainPopup.show(
-                        context,
-                        xp: quest.xpReward,
-                        statName: quest.statBoost,
-                        statAmount: 1,
-                      );
-                    }
-                  },
+                  onTap: (quest.targetValue > 1 || const ['dk', 'set', 'sayfa', 'problem', 'bardak', 'seans'].contains(quest.unit))
+                      ? () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Bu görev sayısal ilerlemelidir. Pomodoro veya antrenman tamamlayarak ilerletilebilir! ⚡'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      : () async {
+                          final nextCompleted = !quest.isCompleted;
+                          await ref.read(questRepositoryProvider).toggleQuest(uid, quest.id, nextCompleted);
+                          
+                          if (nextCompleted && mounted) {
+                            XpGainPopup.show(
+                              context,
+                              xp: quest.xpReward,
+                              statName: quest.statBoost,
+                              statAmount: 1,
+                            );
+                          }
+                        },
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 250),
                     child: isDone
@@ -528,24 +633,39 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
                         : const Icon(Icons.radio_button_unchecked, color: AppColors.textSecondary, size: 26, key: ValueKey(false)),
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // Progress Bar
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: isDone ? 1.0 : progress,
-                backgroundColor: AppColors.background,
-                valueColor: AlwaysStoppedAnimation<Color>(isDone ? AppColors.success : Colors.orangeAccent),
-                minHeight: 6,
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Progress Bar
+        Row(
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: isDone ? 1.0 : progress.clamp(0.0, 1.0),
+                  backgroundColor: AppColors.background,
+                  valueColor: AlwaysStoppedAnimation<Color>(isDone ? AppColors.success : Colors.orangeAccent),
+                  minHeight: 6,
+                ),
               ),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(width: 10),
             Text(
-              isDone ? 'Tamamlandı' : '${(progress * 100).toInt()}% tamamlandı',
-              style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11),
+              '${isDone ? quest.targetValue : quest.currentValue}/${quest.targetValue} ${quest.unit}',
+              style: GoogleFonts.inter(
+                color: AppColors.textSecondary,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
             ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          isDone ? 'Tamamlandı' : '${(progress * 100).toInt()}% tamamlandı',
+          style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11),
+        ),
           ],
         ),
       ),

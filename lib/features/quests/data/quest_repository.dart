@@ -55,11 +55,13 @@ class QuestRepository {
     if (!doc.exists) return;
 
     final quest = QuestModel.fromMap(doc.data()!, doc.id);
+    if (quest.isCompleted) return; // Zaten tamamlanmış
 
     await _questsCol(uid).doc(questId).update({
       'isCompleted': true,
       'completedAt': Timestamp.fromDate(DateTime.now()),
       'progress': 1.0,
+      'currentValue': quest.targetValue,
     });
 
     // XP ve stat güncelle
@@ -82,175 +84,277 @@ class QuestRepository {
         'isCompleted': false,
         'completedAt': null,
         'progress': 0.0,
+        'currentValue': 0,
       });
     }
   }
 
-  QuestModel? _getDailyQuestForArea(String area, DateTime now) {
-    switch (area) {
-      case 'academic':
-        return QuestModel(
-          id: '',
-          title: 'Ders Çalış (1 Saat)',
-          xpReward: 80,
-          category: 'daily',
-          iconName: 'school',
-          isCompleted: false,
-          createdAt: now,
-          statBoost: 'knowledge',
-          progress: 0.0,
-        );
-      case 'fitness':
-        return QuestModel(
-          id: '',
-          title: 'Spor Yap (30 dk)',
-          xpReward: 100,
-          category: 'daily',
-          iconName: 'fitness_center',
-          isCompleted: false,
-          createdAt: now,
-          statBoost: 'strength',
-          progress: 0.0,
-        );
-      case 'reading':
-        return QuestModel(
-          id: '',
-          title: 'Kitap Oku (20 sayfa)',
-          xpReward: 50,
-          category: 'daily',
-          iconName: 'menu_book',
-          isCompleted: false,
-          createdAt: now,
-          statBoost: 'knowledge',
-          progress: 0.0,
-        );
-      case 'coding':
-        return QuestModel(
-          id: '',
-          title: 'Kod Yaz / Proje Geliştir (1 saat)',
-          xpReward: 80,
-          category: 'daily',
-          iconName: 'timer',
-          isCompleted: false,
-          createdAt: now,
-          statBoost: 'focus',
-          progress: 0.0,
-        );
-      default:
-        return null;
+  /// Görev ilerlemesini artırır
+  Future<void> incrementQuestProgress(String uid, String questId, int amount) async {
+    final doc = await _questsCol(uid).doc(questId).get();
+    if (!doc.exists) return;
+
+    final quest = QuestModel.fromMap(doc.data()!, doc.id);
+    if (quest.isCompleted) return; // Zaten tamamlanmış
+
+    int newVal = quest.currentValue + amount;
+    if (newVal >= quest.targetValue) {
+      newVal = quest.targetValue;
+      await completeQuest(uid, questId);
+    } else {
+      double newProgress = newVal / quest.targetValue;
+      await _questsCol(uid).doc(questId).update({
+        'currentValue': newVal,
+        'progress': newProgress,
+      });
     }
   }
 
-  QuestModel? _getWeeklyQuestForArea(String area, DateTime now) {
+  List<QuestModel> _getDailyQuestsForArea(String area, DateTime now) {
     switch (area) {
       case 'academic':
-        return QuestModel(
-          id: '',
-          title: '10 Saat Çalışma Hedefi',
-          xpReward: 500,
-          category: 'weekly',
-          iconName: 'school',
-          isCompleted: false,
-          createdAt: now,
-          statBoost: 'knowledge',
-          progress: 0.0,
-        );
+        return [
+          QuestModel(
+            id: '',
+            title: 'Ders Çalış (60 dk)',
+            xpReward: 80,
+            category: 'daily',
+            iconName: 'school',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'knowledge',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 60,
+            unit: 'dk',
+          ),
+          QuestModel(
+            id: '',
+            title: 'Pomodoro Tamamla (2 Seans)',
+            xpReward: 60,
+            category: 'daily',
+            iconName: 'timer',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'focus',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 2,
+            unit: 'seans',
+          ),
+        ];
       case 'fitness':
-        return QuestModel(
-          id: '',
-          title: 'Haftalık 3 Antrenman',
-          xpReward: 400,
-          category: 'weekly',
-          iconName: 'fitness_center',
-          isCompleted: false,
-          createdAt: now,
-          statBoost: 'strength',
-          progress: 0.0,
-        );
+        return [
+          QuestModel(
+            id: '',
+            title: 'Antrenman Yap (3 Set)',
+            xpReward: 100,
+            category: 'daily',
+            iconName: 'fitness_center',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'strength',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 3,
+            unit: 'set',
+          ),
+          QuestModel(
+            id: '',
+            title: '2 Litre Su İç (10 Bardak)',
+            xpReward: 40,
+            category: 'daily',
+            iconName: 'water_drop',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'energy',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 10,
+            unit: 'bardak',
+          ),
+        ];
       case 'reading':
-        return QuestModel(
-          id: '',
-          title: 'Bir Kitap Bitir',
-          xpReward: 300,
-          category: 'weekly',
-          iconName: 'menu_book',
-          isCompleted: false,
-          createdAt: now,
-          statBoost: 'knowledge',
-          progress: 0.0,
-        );
+        return [
+          QuestModel(
+            id: '',
+            title: 'Kitap Oku (20 Sayfa)',
+            xpReward: 50,
+            category: 'daily',
+            iconName: 'menu_book',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'knowledge',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 20,
+            unit: 'sayfa',
+          ),
+          QuestModel(
+            id: '',
+            title: 'Günlük Yaz & Meditasyon (15 dk)',
+            xpReward: 40,
+            category: 'daily',
+            iconName: 'self_improvement',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'energy',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 15,
+            unit: 'dk',
+          ),
+        ];
       case 'coding':
-        return QuestModel(
-          id: '',
-          title: 'Haftalık Proje Commit Hedefi',
-          xpReward: 500,
-          category: 'weekly',
-          iconName: 'timer',
-          isCompleted: false,
-          createdAt: now,
-          statBoost: 'focus',
-          progress: 0.0,
-        );
+        return [
+          QuestModel(
+            id: '',
+            title: 'Kod Yaz / Geliştirme (60 dk)',
+            xpReward: 80,
+            category: 'daily',
+            iconName: 'timer',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'focus',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 60,
+            unit: 'dk',
+          ),
+          QuestModel(
+            id: '',
+            title: 'Teknik Makale Oku (15 dk)',
+            xpReward: 40,
+            category: 'daily',
+            iconName: 'school',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'knowledge',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 15,
+            unit: 'dk',
+          ),
+        ];
       default:
-        return null;
+        return [];
+    }
+  }
+
+  List<QuestModel> _getWeeklyQuestsForArea(String area, DateTime now) {
+    switch (area) {
+      case 'academic':
+        return [
+          QuestModel(
+            id: '',
+            title: 'Haftalık Çalışma Serisi (300 dk)',
+            xpReward: 500,
+            category: 'weekly',
+            iconName: 'school',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'knowledge',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 300,
+            unit: 'dk',
+          ),
+        ];
+      case 'fitness':
+        return [
+          QuestModel(
+            id: '',
+            title: 'Haftalık Spor Hedefi (150 dk)',
+            xpReward: 400,
+            category: 'weekly',
+            iconName: 'fitness_center',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'strength',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 150,
+            unit: 'dk',
+          ),
+        ];
+      case 'reading':
+        return [
+          QuestModel(
+            id: '',
+            title: 'Haftalık Kitap Sayfa Hedefi (100 Sayfa)',
+            xpReward: 300,
+            category: 'weekly',
+            iconName: 'menu_book',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'knowledge',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 100,
+            unit: 'sayfa',
+          ),
+        ];
+      case 'coding':
+        return [
+          QuestModel(
+            id: '',
+            title: 'Haftalık Algoritma Çözümü (5 Problem)',
+            xpReward: 450,
+            category: 'weekly',
+            iconName: 'bolt',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'focus',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 5,
+            unit: 'problem',
+          ),
+        ];
+      default:
+        return [];
     }
   }
 
   /// Odak alanlarına göre ilk görevleri oluşturur (anket tamamlandığında)
   Future<void> generateQuestsForFocusAreas(String uid, List<String> focusAreas) async {
     final now = DateTime.now();
-    final batch = _db.batch();
 
-    // Filtreleme yapılmadan geçildiyse ('skipped' veya 'none'), varsayılan görevleri ata
+    // 1. Delete existing daily and weekly quests
+    final existingSnap = await _questsCol(uid).get();
+    final deleteBatch = _db.batch();
+    for (final doc in existingSnap.docs) {
+      final cat = doc.data()['category'] as String?;
+      if (cat == 'daily' || cat == 'weekly') {
+        deleteBatch.delete(doc.reference);
+      }
+    }
+    await deleteBatch.commit();
+
+    // 2. Generate new daily & weekly quests
+    final batch = _db.batch();
     if (focusAreas.isEmpty || focusAreas.contains('skipped')) {
       final defaultDailies = [
-        _getDailyQuestForArea('academic', now)!,
-        _getDailyQuestForArea('fitness', now)!,
-        _getDailyQuestForArea('reading', now)!,
-        QuestModel(
-          id: '',
-          title: '2 Litre Su İç',
-          xpReward: 30,
-          category: 'daily',
-          iconName: 'water_drop',
-          isCompleted: false,
-          createdAt: now,
-          statBoost: 'energy',
-          progress: 0.0,
-        ),
+        ..._getDailyQuestsForArea('academic', now),
+        ..._getDailyQuestsForArea('fitness', now),
+        ..._getDailyQuestsForArea('reading', now),
       ];
       for (final quest in defaultDailies) {
         batch.set(_questsCol(uid).doc(), quest.toMap());
       }
     } else {
-      // Her seçilen odak alanı için bir günlük ve bir haftalık görev oluştur
+      // Her seçilen odak alanı için günlük ve haftalık görevleri oluştur
       for (final area in focusAreas) {
-        final dailyQuest = _getDailyQuestForArea(area, now);
-        if (dailyQuest != null) {
-          batch.set(_questsCol(uid).doc(), dailyQuest.toMap());
+        final dailyQuests = _getDailyQuestsForArea(area, now);
+        for (final q in dailyQuests) {
+          batch.set(_questsCol(uid).doc(), q.toMap());
         }
 
-        final weeklyQuest = _getWeeklyQuestForArea(area, now);
-        if (weeklyQuest != null) {
-          batch.set(_questsCol(uid).doc(), weeklyQuest.toMap());
+        final weeklyQuests = _getWeeklyQuestsForArea(area, now);
+        for (final q in weeklyQuests) {
+          batch.set(_questsCol(uid).doc(), q.toMap());
         }
       }
-      
-      // Her koşulda su içme görevini de ekleyelim
-      batch.set(
-        _questsCol(uid).doc(),
-        QuestModel(
-          id: '',
-          title: '2 Litre Su İç',
-          xpReward: 30,
-          category: 'daily',
-          iconName: 'water_drop',
-          isCompleted: false,
-          createdAt: now,
-          statBoost: 'energy',
-          progress: 0.0,
-        ).toMap(),
-      );
     }
 
     await batch.commit();
@@ -284,48 +388,14 @@ class QuestRepository {
     // Eğer odak alanı seçilmemişse veya pas geçildiyse varsayılanları ata
     if (focusAreas.isEmpty || focusAreas.contains('skipped')) {
       defaults.addAll([
-        _getDailyQuestForArea('academic', now)!,
-        _getDailyQuestForArea('fitness', now)!,
-        _getDailyQuestForArea('reading', now)!,
-        QuestModel(
-          id: '',
-          title: '2 Pomodoro Tamamla',
-          xpReward: 80,
-          category: 'daily',
-          iconName: 'timer',
-          isCompleted: false,
-          createdAt: now,
-          statBoost: 'focus',
-          progress: 0.0,
-        ),
-        QuestModel(
-          id: '',
-          title: '2 Litre Su İç',
-          xpReward: 30,
-          category: 'daily',
-          iconName: 'water_drop',
-          isCompleted: false,
-          createdAt: now,
-          statBoost: 'energy',
-          progress: 0.0,
-        ),
+        ..._getDailyQuestsForArea('academic', now),
+        ..._getDailyQuestsForArea('fitness', now),
+        ..._getDailyQuestsForArea('reading', now),
       ]);
     } else {
       for (final area in focusAreas) {
-        final q = _getDailyQuestForArea(area, now);
-        if (q != null) defaults.add(q);
+        defaults.addAll(_getDailyQuestsForArea(area, now));
       }
-      defaults.add(QuestModel(
-        id: '',
-        title: '2 Litre Su İç',
-        xpReward: 30,
-        category: 'daily',
-        iconName: 'water_drop',
-        isCompleted: false,
-        createdAt: now,
-        statBoost: 'energy',
-        progress: 0.0,
-      ));
     }
 
     final batch = _db.batch();
@@ -333,5 +403,10 @@ class QuestRepository {
       batch.set(_questsCol(uid).doc(), quest.toMap());
     }
     await batch.commit();
+  }
+
+  /// Görevi günceller (düzenleme için)
+  Future<void> updateQuest(String uid, QuestModel quest) async {
+    await _questsCol(uid).doc(quest.id).update(quest.toMap());
   }
 }

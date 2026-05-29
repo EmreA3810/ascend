@@ -7,7 +7,8 @@ import '../data/quest_model.dart';
 import '../providers/quest_provider.dart';
 
 class AddQuestBottomSheet extends ConsumerStatefulWidget {
-  const AddQuestBottomSheet({super.key});
+  final QuestModel? initialQuest;
+  const AddQuestBottomSheet({super.key, this.initialQuest});
 
   @override
   ConsumerState<AddQuestBottomSheet> createState() => _AddQuestBottomSheetState();
@@ -16,19 +17,38 @@ class AddQuestBottomSheet extends ConsumerStatefulWidget {
 class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
+  final _targetValueController = TextEditingController(text: '1');
 
   int _selectedXp = 50;
-  String _selectedCategory = 'daily';
+  String _selectedCategory = 'custom';
   String _selectedStatBoost = 'focus';
   String _selectedIcon = 'star';
+  String _selectedUnit = 'dk';
+
+  final List<Map<String, String>> _unitOptions = const [
+    {'value': 'dk', 'label': 'Dakika (dk)'},
+    {'value': 'set', 'label': 'Set'},
+    {'value': 'sayfa', 'label': 'Sayfa'},
+    {'value': 'bardak', 'label': 'Bardak'},
+    {'value': 'problem', 'label': 'Problem'},
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final quest = widget.initialQuest;
+    if (quest != null) {
+      _titleController.text = quest.title;
+      _targetValueController.text = quest.targetValue.toString();
+      _selectedXp = quest.xpReward;
+      _selectedCategory = quest.category;
+      _selectedStatBoost = quest.statBoost;
+      _selectedIcon = quest.iconName;
+      _selectedUnit = quest.unit;
+    }
+  }
 
   final List<int> _xpOptions = const [30, 50, 80, 100, 150];
-  
-  final List<Map<String, String>> _categories = const [
-    {'value': 'daily', 'label': 'Günlük'},
-    {'value': 'weekly', 'label': 'Haftalık'},
-    {'value': 'custom', 'label': 'Özel'},
-  ];
 
   final List<Map<String, String>> _stats = const [
     {'value': 'focus', 'label': 'Odak', 'color': '0xFF00E5FF'},
@@ -51,6 +71,7 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
   @override
   void dispose() {
     _titleController.dispose();
+    _targetValueController.dispose();
     super.dispose();
   }
 
@@ -76,25 +97,38 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
     final user = userAsync.value;
     if (user == null) return;
 
-    final newQuest = QuestModel(
-      id: '',
+    final targetVal = int.tryParse(_targetValueController.text.trim()) ?? 1;
+
+    final isEdit = widget.initialQuest != null;
+
+    final questData = QuestModel(
+      id: isEdit ? widget.initialQuest!.id : '',
       title: _titleController.text.trim(),
       xpReward: _selectedXp,
       category: _selectedCategory,
       iconName: _selectedIcon,
-      isCompleted: false,
-      createdAt: DateTime.now(),
+      isCompleted: isEdit ? widget.initialQuest!.isCompleted : false,
+      createdAt: isEdit ? widget.initialQuest!.createdAt : DateTime.now(),
+      completedAt: isEdit ? widget.initialQuest!.completedAt : null,
       statBoost: _selectedStatBoost,
-      progress: 0.0,
+      progress: isEdit ? widget.initialQuest!.progress : 0.0,
+      currentValue: isEdit ? widget.initialQuest!.currentValue : 0,
+      targetValue: targetVal,
+      unit: _selectedUnit,
     );
 
     try {
-      await ref.read(questRepositoryProvider).addQuest(user.uid, newQuest);
+      if (isEdit) {
+        await ref.read(questRepositoryProvider).updateQuest(user.uid, questData);
+      } else {
+        await ref.read(questRepositoryProvider).addQuest(user.uid, questData);
+      }
+      
       if (mounted) {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Yeni görev başarıyla eklendi! 🚀'),
+          SnackBar(
+            content: Text(isEdit ? 'Görev başarıyla güncellendi! 🚀' : 'Yeni görev başarıyla eklendi! 🚀'),
             backgroundColor: AppColors.success,
           ),
         );
@@ -151,7 +185,7 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
               ),
               
               Text(
-                'YENİ GÖREV EKLE',
+                widget.initialQuest != null ? 'GÖREVİ DÜZENLE' : 'YENİ GÖREV EKLE',
                 style: GoogleFonts.inter(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -200,6 +234,107 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
               ),
               const SizedBox(height: 20),
 
+              // Target Value & Unit Inputs
+              Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hedef Değer',
+                          style: GoogleFonts.inter(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _targetValueController,
+                          keyboardType: TextInputType.number,
+                          style: GoogleFonts.inter(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: '1',
+                            filled: true,
+                            fillColor: AppColors.cardBackground,
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.primary),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          ),
+                          validator: (val) {
+                            if (val == null || val.trim().isEmpty) return 'Boş olamaz';
+                            final parsed = int.tryParse(val.trim());
+                            if (parsed == null || parsed <= 0) return 'Pozitif sayı girin';
+                            return null;
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Birim',
+                          style: GoogleFonts.inter(
+                            color: AppColors.textSecondary,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: _selectedUnit,
+                          dropdownColor: AppColors.cardBackground,
+                          style: GoogleFonts.inter(color: Colors.white),
+                          decoration: InputDecoration(
+                            filled: true,
+                            fillColor: AppColors.cardBackground,
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppColors.primary),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                          items: _unitOptions.map((unit) {
+                            return DropdownMenuItem<String>(
+                              value: unit['value'],
+                              child: Text(
+                                unit['label']!,
+                                style: GoogleFonts.inter(color: Colors.white),
+                              ),
+                            );
+                          }).toList(),
+                          onChanged: (val) {
+                            if (val != null) {
+                              setState(() {
+                                _selectedUnit = val;
+                              });
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
               // XP Selector
               Text(
                 'XP Ödülü',
@@ -244,48 +379,7 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
               ),
               const SizedBox(height: 20),
 
-              // Category Selector
-              Text(
-                'Kategori',
-                style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: _categories.map((cat) {
-                  final isSelected = _selectedCategory == cat['value'];
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: GestureDetector(
-                        onTap: () => setState(() => _selectedCategory = cat['value']!),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          decoration: BoxDecoration(
-                            color: isSelected ? AppColors.primary.withValues(alpha: 0.15) : AppColors.cardBackground,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected ? AppColors.primary : AppColors.primary.withValues(alpha: 0.1),
-                              width: 1.5,
-                            ),
-                          ),
-                          child: Center(
-                            child: Text(
-                              cat['label']!,
-                              style: GoogleFonts.inter(
-                                color: isSelected ? AppColors.primary : Colors.white,
-                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 20),
+
 
               // Stat Boost Selector
               Text(
@@ -404,7 +498,7 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
                       ),
                       onPressed: _submit,
                       child: Text(
-                        'Oluştur',
+                        widget.initialQuest != null ? 'Güncelle' : 'Oluştur',
                         style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
                       ),
                     ),
