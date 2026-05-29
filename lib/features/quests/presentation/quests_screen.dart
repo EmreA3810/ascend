@@ -21,7 +21,7 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -33,6 +33,7 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
   Future<void> _onRefresh() async {
     ref.invalidate(dailyQuestsProvider);
     ref.invalidate(weeklyQuestsProvider);
+    ref.invalidate(customQuestsProvider);
   }
 
   @override
@@ -58,6 +59,7 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
 
     final dailyQuestsAsync = ref.watch(dailyQuestsProvider);
     final weeklyQuestsAsync = ref.watch(weeklyQuestsProvider);
+    final customQuestsAsync = ref.watch(customQuestsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -75,7 +77,7 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
           unselectedLabelColor: AppColors.textSecondary,
           labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold),
           unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.normal),
-          tabs: const [Tab(text: 'Günlük'), Tab(text: 'Haftalık')],
+          tabs: const [Tab(text: 'Günlük'), Tab(text: 'Haftalık'), Tab(text: 'Özel')],
         ),
       ),
       floatingActionButton: FloatingActionButton(
@@ -97,8 +99,37 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
         children: [
           _buildDailyTab(user.uid, dailyQuestsAsync),
           _buildWeeklyTab(user.uid, weeklyQuestsAsync),
+          _buildCustomTab(user.uid, customQuestsAsync),
         ],
       ),
+    );
+  }
+
+  Widget _buildCustomTab(String uid, AsyncValue<List<QuestModel>> customQuestsAsync) {
+    return customQuestsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      error: (err, stack) => Center(
+        child: Text('Görevler yüklenirken hata oluştu', style: GoogleFonts.inter(color: Colors.white)),
+      ),
+      data: (quests) {
+        return RefreshIndicator(
+          onRefresh: _onRefresh,
+          color: AppColors.primary,
+          backgroundColor: AppColors.cardBackground,
+          child: quests.isEmpty
+              ? _buildEmptyState('Özel görev bulunmuyor.')
+              : Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: ListView.builder(
+                    itemCount: quests.length,
+                    itemBuilder: (ctx, i) {
+                      final quest = quests[i];
+                      return _buildQuestTile(uid, quest);
+                    },
+                  ),
+                ),
+        );
+      },
     );
   }
 

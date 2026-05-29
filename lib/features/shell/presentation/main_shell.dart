@@ -11,6 +11,7 @@ import '../../achievements/providers/achievement_provider.dart';
 import '../../user/providers/user_provider.dart';
 import '../../../core/widgets/level_up_overlay.dart';
 import '../../user/data/user_model.dart';
+import '../../onboarding/presentation/focus_questionnaire_overlay.dart';
 
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
@@ -32,19 +33,26 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final userAsync = ref.watch(currentUserProvider);
+    final user = userAsync.value;
+
     // Listen to currentUserProvider
     ref.listen<AsyncValue<UserModel?>>(currentUserProvider, (previous, next) {
-      final user = next.value;
-      if (user != null) {
-        ref.read(questRepositoryProvider).ensureDailyQuests(user.uid);
-        ref.read(achievementRepositoryProvider).initializeAchievements(user.uid);
+      final u = next.value;
+      if (u != null) {
+        ref.read(questRepositoryProvider).ensureDailyQuests(u.uid);
+        ref.read(achievementRepositoryProvider).initializeAchievements(u.uid);
 
         final oldUser = previous?.value;
-        if (oldUser != null && user.level > oldUser.level) {
-          LevelUpOverlay.show(context, newLevel: user.level, newTitle: user.title);
+        if (oldUser != null && u.level > oldUser.level) {
+          LevelUpOverlay.show(context, newLevel: u.level, newTitle: u.title);
         }
       }
     });
+
+    if (user != null && user.focusAreas.isEmpty) {
+      return FocusQuestionnaireOverlay(uid: user.uid);
+    }
 
     final dailyQuestsAsync = ref.watch(dailyQuestsProvider);
     final uncompletedCount = dailyQuestsAsync.maybeWhen(

@@ -85,7 +85,7 @@ class CharacterScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildCharacterHero(user),
+                _buildCharacterHero(context, ref, user),
                 const SizedBox(height: 20),
                 _buildStatsSection(user),
                 const SizedBox(height: 20),
@@ -101,7 +101,7 @@ class CharacterScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCharacterHero(UserModel user) {
+  Widget _buildCharacterHero(BuildContext context, WidgetRef ref, UserModel user) {
     final xpRatio = user.xpToNextLevel > 0 ? (user.xp / user.xpToNextLevel).clamp(0.0, 1.0) : 0.0;
 
     return GlassmorphicCard(
@@ -138,7 +138,9 @@ class CharacterScreen extends ConsumerWidget {
               style: GoogleFonts.inter(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 12),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+          _buildFocusAreasRow(context, ref, user),
+          const SizedBox(height: 16),
           // XP Bar
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -171,6 +173,223 @@ class CharacterScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFocusAreasRow(BuildContext context, WidgetRef ref, UserModel user) {
+    final areas = user.focusAreas.where((a) => a != 'skipped').toList();
+    
+    String getLabel(String id) {
+      switch (id) {
+        case 'academic': return '🎓 Ders';
+        case 'fitness': return '🏋️ Spor';
+        case 'reading': return '📚 Okuma';
+        case 'coding': return '💻 Kod';
+        default: return id;
+      }
+    }
+
+    Color getColor(String id) {
+      switch (id) {
+        case 'academic': return AppColors.statKnowledge;
+        case 'fitness': return AppColors.statStrength;
+        case 'reading': return AppColors.primary;
+        case 'coding': return AppColors.statFocus;
+        default: return AppColors.textSecondary;
+      }
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              if (areas.isEmpty)
+                Text(
+                  'Odak alanı seçilmedi',
+                  style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontStyle: FontStyle.italic),
+                )
+              else
+                ...areas.map((id) {
+                  final color = getColor(id);
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
+                    ),
+                    child: Text(
+                      getLabel(id),
+                      style: GoogleFonts.inter(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  );
+                }),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          constraints: const BoxConstraints(),
+          padding: EdgeInsets.zero,
+          icon: const Icon(Icons.settings_suggest_rounded, color: AppColors.secondary, size: 20),
+          onPressed: () => _showEditFocusAreasSheet(context, ref, user),
+        ),
+      ],
+    );
+  }
+
+  void _showEditFocusAreasSheet(BuildContext context, WidgetRef ref, UserModel user) {
+    final List<String> currentSelected = List.from(user.focusAreas.where((a) => a != 'skipped'));
+    
+    final List<Map<String, dynamic>> options = [
+      {'id': 'academic', 'label': 'Ders Çalışma & Akademi', 'icon': '🎓', 'color': AppColors.statKnowledge},
+      {'id': 'fitness', 'label': 'Spor & Sağlıklı Yaşam', 'icon': '🏋️', 'color': AppColors.statStrength},
+      {'id': 'reading', 'label': 'Kişisel Gelişim & Okuma', 'icon': '📚', 'color': AppColors.primary},
+      {'id': 'coding', 'label': 'Yazılım & Kariyer / İş', 'icon': '💻', 'color': AppColors.statFocus},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 20),
+                      decoration: BoxDecoration(
+                        color: AppColors.textSecondary.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'ODAK ALANLARINI DÜZENLE',
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      letterSpacing: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Seçtiğiniz odak alanlarına göre günlük ve haftalık görevleriniz yarından itibaren güncellenecektir.',
+                    style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                  const SizedBox(height: 20),
+                  ...options.map((opt) {
+                    final id = opt['id'] as String;
+                    final isSelected = currentSelected.contains(id);
+                    final color = opt['color'] as Color;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            if (isSelected) {
+                              currentSelected.remove(id);
+                            } else {
+                              currentSelected.add(id);
+                            }
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isSelected ? color.withValues(alpha: 0.1) : AppColors.cardBackground,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected ? color : AppColors.primary.withValues(alpha: 0.1),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Text(opt['icon'] as String, style: const TextStyle(fontSize: 20)),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  opt['label'] as String,
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ),
+                              Icon(
+                                isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
+                                color: isSelected ? color : AppColors.textSecondary,
+                                size: 20,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text(
+                            'İptal',
+                            style: GoogleFonts.inter(color: AppColors.textSecondary),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+                          onPressed: () async {
+                            final finalAreas = currentSelected.isEmpty ? ['skipped'] : currentSelected;
+                            await ref.read(userRepositoryProvider).updateFocusAreas(user.uid, finalAreas);
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Odak alanları güncellendi! Yarından itibaren geçerli olacak. 🚀'),
+                                  backgroundColor: AppColors.success,
+                                ),
+                              );
+                            }
+                          },
+                          child: Text(
+                            'Kaydet',
+                            style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

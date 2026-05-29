@@ -92,6 +92,13 @@ class UserRepository {
     });
   }
 
+  /// Odak alanlarını güncelle
+  Future<void> updateFocusAreas(String uid, List<String> focusAreas) async {
+    await updateUser(uid, {
+      'focusAreas': focusAreas,
+    });
+  }
+
   int _xpForLevel(int level) => 500 + (level - 1) * 200;
 
   String _titleForLevel(int level) {

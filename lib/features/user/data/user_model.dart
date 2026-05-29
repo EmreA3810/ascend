@@ -14,6 +14,7 @@ class UserModel {
   final int totalQuestsCompleted;
   final int totalPomodoroSessions;
   final int totalMinutesFocused;
+  final List<String> focusAreas;
 
   const UserModel({
     required this.uid,
@@ -29,6 +30,7 @@ class UserModel {
     this.totalQuestsCompleted = 0,
     this.totalPomodoroSessions = 0,
     this.totalMinutesFocused = 0,
+    this.focusAreas = const [],
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
@@ -47,6 +49,7 @@ class UserModel {
       totalQuestsCompleted: (map['totalQuestsCompleted'] as num?)?.toInt() ?? 0,
       totalPomodoroSessions: (map['totalPomodoroSessions'] as num?)?.toInt() ?? 0,
       totalMinutesFocused: (map['totalMinutesFocused'] as num?)?.toInt() ?? 0,
+      focusAreas: List<String>.from(map['focusAreas'] ?? const []),
     );
   }
 
@@ -64,6 +67,7 @@ class UserModel {
         'totalQuestsCompleted': totalQuestsCompleted,
         'totalPomodoroSessions': totalPomodoroSessions,
         'totalMinutesFocused': totalMinutesFocused,
+        'focusAreas': focusAreas,
       };
 
   UserModel copyWith({
@@ -77,6 +81,7 @@ class UserModel {
     int? totalQuestsCompleted,
     int? totalPomodoroSessions,
     int? totalMinutesFocused,
+    List<String>? focusAreas,
   }) {
     return UserModel(
       uid: uid,
@@ -92,6 +97,7 @@ class UserModel {
       totalQuestsCompleted: totalQuestsCompleted ?? this.totalQuestsCompleted,
       totalPomodoroSessions: totalPomodoroSessions ?? this.totalPomodoroSessions,
       totalMinutesFocused: totalMinutesFocused ?? this.totalMinutesFocused,
+      focusAreas: focusAreas ?? this.focusAreas,
     );
   }
 }

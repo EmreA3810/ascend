@@ -29,24 +29,24 @@ Bu doküman Ascend projesinin fikir aşamasından Play Store yayın sürecine ka
 ## 4. Core Gameplay Sistemleri
 - [x] XP sistemi geliştir
 - [x] Level sistemi geliştir
-- [ ] Stat sistemi oluştur
-- [ ] Daily quest sistemi ekle
-- [ ] Achievement sistemi oluştur
-- [ ] Reward sistemi geliştir
+- [x] Stat sistemi oluştur
+- [x] Daily quest sistemi ekle
+- [x] Achievement sistemi oluştur
+- [x] Reward sistemi geliştir
 - [x] Streak sistemi geliştir
 
 ## 5. Pomodoro & Focus Sistemi
 - [x] 25/5 pomodoro sistemi ekle
-- [ ] Custom timer sistemi ekle
-- [ ] Session geçmişi oluştur
+- [x] Custom timer sistemi ekle
+- [x] Session geçmişi oluştur
 - [ ] Bildirim sistemi ekle
-- [ ] Focus modu oluştur
+- [x] Focus modu oluştur
 
 ## 6. Animasyon & Ses
-- [ ] XP animation sistemi yap
-- [ ] Level up animasyonu ekle
+- [x] XP animation sistemi yap
+- [x] Level up animasyonu ekle
 - [ ] Particle effect sistemi oluştur
-- [ ] Ses efektleri ekle
+- [x] Ses efektleri ekle
 - [ ] Premium UI geçişleri tasarla
 
 ## 7. Beta Hazırlığı
@@ -71,6 +71,7 @@ Bu doküman Ascend projesinin fikir aşamasından Play Store yayın sürecine ka
 - [ ] Guild sistemi ekle
 - [ ] Battle sistemi geliştir
 - [ ] AI mentor sistemi ekle
+- [ ] AI Tabanlı Görev Önerileri ve Motivasyon Yazıları (Kullanıcı profiline göre şekillenen AI)
 
 ## 10. Marketing Planı
 - [ ] TikTok içerikleri oluştur
@@ -202,13 +203,13 @@ Döngü:
 - Karakter geliştirir
 
 ### İlk Sürümde Kesin Olması Gerekenler (Core Features)
-- [ ] Görev sistemi
-- [ ] XP sistemi
-- [ ] Level sistemi
-- [ ] Streak sistemi
-- [ ] Pomodoro
-- [ ] Basit karakter sistemi
-- [ ] Achievement sistemi
+- [x] Görev sistemi
+- [x] XP sistemi
+- [x] Level sistemi
+- [x] Streak sistemi
+- [x] Pomodoro
+- [x] Basit karakter sistemi
+- [x] Achievement sistemi
 
 ### İlk Sürümde OLMAMASI Gerekenler
 - ❌ Açık dünya mantığı
