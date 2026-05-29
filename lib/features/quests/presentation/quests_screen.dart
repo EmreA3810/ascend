@@ -1,28 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/xp_gain_popup.dart';
+import '../data/quest_model.dart';
+import '../providers/quest_provider.dart';
+import '../../user/providers/user_provider.dart';
+import 'add_quest_sheet.dart';
 
-class QuestsScreen extends StatefulWidget {
+class QuestsScreen extends ConsumerStatefulWidget {
   const QuestsScreen({super.key});
 
   @override
-  State<QuestsScreen> createState() => _QuestsScreenState();
+  ConsumerState<QuestsScreen> createState() => _QuestsScreenState();
 }
 
-class _QuestsScreenState extends State<QuestsScreen> with SingleTickerProviderStateMixin {
+class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
-  final List<Map<String, dynamic>> dailyQuests = [
-    {'title': '1 Saat Ders Çalış', 'xp': 80, 'icon': Icons.school, 'done': false},
-    {'title': 'Spor Yap (30 dk)', 'xp': 100, 'icon': Icons.fitness_center, 'done': true},
-    {'title': 'Kitap Oku (20 sayfa)', 'xp': 50, 'icon': Icons.menu_book, 'done': false},
-    {'title': '2 Pomodoro Tamamla', 'xp': 80, 'icon': Icons.timer, 'done': false},
-    {'title': '2 Litre Su İç', 'xp': 30, 'icon': Icons.water_drop, 'done': true},
-  ];
-
-  final List<Map<String, dynamic>> weeklyQuests = [
-    {'title': '10 Saat Çalışma Serisi', 'xp': 500, 'icon': Icons.star, 'progress': 0.6},
-    {'title': 'Her Gün Spor (5/7)', 'xp': 300, 'icon': Icons.emoji_events, 'progress': 0.71},
-  ];
 
   @override
   void initState() {
@@ -36,191 +30,493 @@ class _QuestsScreenState extends State<QuestsScreen> with SingleTickerProviderSt
     super.dispose();
   }
 
+  Future<void> _onRefresh() async {
+    ref.invalidate(dailyQuestsProvider);
+    ref.invalidate(weeklyQuestsProvider);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final userAsync = ref.watch(currentUserProvider);
+    final user = userAsync.value;
+
+    if (user == null) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          title: Text(
+            'Görevler',
+            style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(color: AppColors.primary),
+        ),
+      );
+    }
+
+    final dailyQuestsAsync = ref.watch(dailyQuestsProvider);
+    final weeklyQuestsAsync = ref.watch(weeklyQuestsProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Görevler', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        title: Text(
+          'Görevler',
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: AppColors.primary,
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.textSecondary,
+          labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold),
+          unselectedLabelStyle: GoogleFonts.inter(fontWeight: FontWeight.normal),
           tabs: const [Tab(text: 'Günlük'), Tab(text: 'Haftalık')],
         ),
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.primary,
-        child: const Icon(Icons.add, color: Colors.white),
-        onPressed: () {},
+        elevation: 6,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Icon(Icons.add, color: Colors.white, size: 28),
+        onPressed: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (ctx) => const AddQuestBottomSheet(),
+          );
+        },
       ),
       body: TabBarView(
         controller: _tabController,
-        children: [_buildDailyTab(), _buildWeeklyTab()],
-      ),
-    );
-  }
-
-  Widget _buildDailyTab() {
-    final done = dailyQuests.where((q) => q['done'] == true).length;
-    final total = dailyQuests.length;
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [
-                AppColors.primary.withValues(alpha: 0.2),
-                AppColors.secondary.withValues(alpha: 0.08),
-              ]),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('$done / $total Tamamlandı',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                    Text('Bugünkü hedeflerin',
-                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-                  ],
-                ),
-                const Spacer(),
-                Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 52,
-                      height: 52,
-                      child: CircularProgressIndicator(
-                        value: done / total,
-                        backgroundColor: AppColors.background,
-                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.success),
-                        strokeWidth: 5,
-                      ),
-                    ),
-                    Text('${((done / total) * 100).toInt()}%',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          Expanded(
-            child: ListView.builder(
-              itemCount: dailyQuests.length,
-              itemBuilder: (ctx, i) => _buildQuestTile(dailyQuests[i], i),
-            ),
-          ),
+          _buildDailyTab(user.uid, dailyQuestsAsync),
+          _buildWeeklyTab(user.uid, weeklyQuestsAsync),
         ],
       ),
     );
   }
 
-  Widget _buildQuestTile(Map<String, dynamic> q, int index) {
-    final isDone = q['done'] as bool;
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDone ? AppColors.success.withValues(alpha: 0.35) : AppColors.primary.withValues(alpha: 0.15),
+  Widget _buildDailyTab(String uid, AsyncValue<List<QuestModel>> dailyQuestsAsync) {
+    return dailyQuestsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      error: (err, stack) => Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, color: AppColors.error, size: 48),
+            const SizedBox(height: 12),
+            Text('Görevler yüklenirken hata oluştu', style: GoogleFonts.inter(color: Colors.white)),
+            TextButton(
+              onPressed: _onRefresh,
+              child: const Text('Tekrar Dene', style: TextStyle(color: AppColors.primary)),
+            )
+          ],
         ),
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: (isDone ? AppColors.success : AppColors.primary).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
+      data: (quests) {
+        final completed = quests.where((q) => q.isCompleted).length;
+        final total = quests.length;
+        final percent = total > 0 ? completed / total : 0.0;
+
+        return RefreshIndicator(
+          onRefresh: _onRefresh,
+          color: AppColors.primary,
+          backgroundColor: AppColors.cardBackground,
+          child: quests.isEmpty
+              ? _buildEmptyState('Bugün için görev bulunmuyor.')
+              : Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      // Progress Summary Header Card
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(colors: [
+                            AppColors.primary.withValues(alpha: 0.15),
+                            AppColors.secondary.withValues(alpha: 0.05),
+                          ]),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primary.withValues(alpha: 0.05),
+                              blurRadius: 10,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '$completed / $total Tamamlandı',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Bugünkü disiplin seviyen',
+                                  style: GoogleFonts.inter(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Spacer(),
+                            Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                SizedBox(
+                                  width: 56,
+                                  height: 56,
+                                  child: CircularProgressIndicator(
+                                    value: percent,
+                                    backgroundColor: AppColors.background,
+                                    valueColor: const AlwaysStoppedAnimation<Color>(AppColors.success),
+                                    strokeWidth: 5,
+                                  ),
+                                ),
+                                Text(
+                                  '${(percent * 100).toInt()}%',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // List of Quests
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: quests.length,
+                          itemBuilder: (ctx, i) {
+                            final quest = quests[i];
+                            return _buildQuestTile(uid, quest);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+        );
+      },
+    );
+  }
+
+  Widget _buildWeeklyTab(String uid, AsyncValue<List<QuestModel>> weeklyQuestsAsync) {
+    return weeklyQuestsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      error: (err, stack) => Center(
+        child: Text('Görevler yüklenirken hata oluştu', style: GoogleFonts.inter(color: Colors.white)),
+      ),
+      data: (quests) {
+        return RefreshIndicator(
+          onRefresh: _onRefresh,
+          color: AppColors.primary,
+          backgroundColor: AppColors.cardBackground,
+          child: quests.isEmpty
+              ? _buildEmptyState('Bu hafta için görev bulunmuyor.')
+              : Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: ListView.builder(
+                    itemCount: quests.length,
+                    itemBuilder: (ctx, i) {
+                      final quest = quests[i];
+                      return _buildWeeklyQuestCard(uid, quest);
+                    },
+                  ),
+                ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState(String message) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+        const Icon(Icons.assignment_turned_in_outlined, color: AppColors.textSecondary, size: 64),
+        const SizedBox(height: 16),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 16),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Yeni bir tane eklemek için + butonuna bas.',
+          textAlign: TextAlign.center,
+          style: GoogleFonts.inter(color: AppColors.textSecondary.withValues(alpha: 0.5), fontSize: 13),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuestTile(String uid, QuestModel quest) {
+    final isDone = quest.isCompleted;
+    final iconData = QuestModel.iconFromName(quest.iconName);
+
+    return Dismissible(
+      key: Key(quest.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Icon(Icons.delete_sweep_rounded, color: Colors.white, size: 28),
+      ),
+      confirmDismiss: (direction) async {
+        return true;
+      },
+      onDismissed: (direction) {
+        ref.read(questRepositoryProvider).deleteQuest(uid, quest.id);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"${quest.title}" görevi silindi.')),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDone ? AppColors.success.withValues(alpha: 0.3) : AppColors.primary.withValues(alpha: 0.15),
+            width: 1,
+          ),
+          boxShadow: isDone
+              ? [
+                  BoxShadow(
+                    color: AppColors.success.withValues(alpha: 0.05),
+                    blurRadius: 8,
+                  )
+                ]
+              : null,
+        ),
+        child: Row(
+          children: [
+            // Icon container
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: (isDone ? AppColors.success : AppColors.primary).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                iconData,
+                color: isDone ? AppColors.success : AppColors.primary,
+                size: 22,
+              ),
             ),
-            child: Icon(q['icon'] as IconData, color: isDone ? AppColors.success : AppColors.primary, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(q['title'],
-                  style: TextStyle(
-                    color: isDone ? AppColors.textSecondary : Colors.white,
-                    fontWeight: FontWeight.bold,
-                    decoration: isDone ? TextDecoration.lineThrough : null,
-                  )),
-              Text('+${q['xp']} XP', style: const TextStyle(color: AppColors.success, fontSize: 12)),
-            ]),
-          ),
-          GestureDetector(
-            onTap: () => setState(() => dailyQuests[index]['done'] = !isDone),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: isDone
-                  ? const Icon(Icons.check_circle, color: AppColors.success, size: 28, key: ValueKey(true))
-                  : const Icon(Icons.radio_button_unchecked, color: AppColors.textSecondary, size: 28, key: ValueKey(false)),
+            const SizedBox(width: 14),
+            // Text Details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    quest.title,
+                    style: GoogleFonts.inter(
+                      color: isDone ? AppColors.textSecondary : Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      decoration: isDone ? TextDecoration.lineThrough : null,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          '+${quest.xpReward} XP',
+                          style: GoogleFonts.inter(
+                            color: AppColors.success,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Stat: ${quest.statBoost.toUpperCase()}',
+                        style: GoogleFonts.inter(
+                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            // Checkbox
+            GestureDetector(
+              onTap: () async {
+                final nextCompleted = !quest.isCompleted;
+                await ref.read(questRepositoryProvider).toggleQuest(uid, quest.id, nextCompleted);
+                
+                if (nextCompleted && mounted) {
+                  XpGainPopup.show(
+                    context,
+                    xp: quest.xpReward,
+                    statName: quest.statBoost,
+                    statAmount: 1,
+                  );
+                }
+              },
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: isDone
+                    ? const Icon(Icons.check_circle, color: AppColors.success, size: 30, key: ValueKey(true))
+                    : const Icon(Icons.radio_button_unchecked, color: AppColors.textSecondary, size: 30, key: ValueKey(false)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildWeeklyTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: ListView(
-        children: weeklyQuests.map((q) {
-          final progress = q['progress'] as double;
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.orangeAccent.withValues(alpha: 0.3)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildWeeklyQuestCard(String uid, QuestModel quest) {
+    final isDone = quest.isCompleted;
+    final progress = quest.progress;
+    final iconData = QuestModel.iconFromName(quest.iconName);
+
+    return Dismissible(
+      key: Key(quest.id),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: AppColors.error.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Icon(Icons.delete_sweep_rounded, color: Colors.white, size: 28),
+      ),
+      onDismissed: (direction) {
+        ref.read(questRepositoryProvider).deleteQuest(uid, quest.id);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('"${quest.title}" görevi silindi.')),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isDone ? AppColors.success.withValues(alpha: 0.3) : Colors.orangeAccent.withValues(alpha: 0.2),
+            width: 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Row(
-                  children: [
-                    Icon(q['icon'] as IconData, color: Colors.orangeAccent, size: 22),
-                    const SizedBox(width: 10),
-                    Expanded(child: Text(q['title'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.orangeAccent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text('+${q['xp']} XP',
-                          style: const TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 12)),
+                // Icon
+                Icon(iconData, color: Colors.orangeAccent, size: 22),
+                const SizedBox(width: 10),
+                // Title
+                Expanded(
+                  child: Text(
+                    quest.title,
+                    style: GoogleFonts.inter(
+                      color: isDone ? AppColors.textSecondary : Colors.white,
+                      fontWeight: FontWeight.bold,
+                      decoration: isDone ? TextDecoration.lineThrough : null,
                     ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    backgroundColor: AppColors.background,
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.orangeAccent),
-                    minHeight: 6,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text('${(progress * 100).toInt()}% tamamlandı',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                // Reward Badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orangeAccent.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '+${quest.xpReward} XP',
+                    style: GoogleFonts.inter(
+                      color: Colors.orangeAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Checkbox
+                GestureDetector(
+                  onTap: () async {
+                    final nextCompleted = !quest.isCompleted;
+                    await ref.read(questRepositoryProvider).toggleQuest(uid, quest.id, nextCompleted);
+                    
+                    if (nextCompleted && mounted) {
+                      XpGainPopup.show(
+                        context,
+                        xp: quest.xpReward,
+                        statName: quest.statBoost,
+                        statAmount: 1,
+                      );
+                    }
+                  },
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child: isDone
+                        ? const Icon(Icons.check_circle, color: AppColors.success, size: 26, key: ValueKey(true))
+                        : const Icon(Icons.radio_button_unchecked, color: AppColors.textSecondary, size: 26, key: ValueKey(false)),
+                  ),
+                ),
               ],
             ),
-          );
-        }).toList(),
+            const SizedBox(height: 12),
+            // Progress Bar
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: isDone ? 1.0 : progress,
+                backgroundColor: AppColors.background,
+                valueColor: AlwaysStoppedAnimation<Color>(isDone ? AppColors.success : Colors.orangeAccent),
+                minHeight: 6,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              isDone ? 'Tamamlandı' : '${(progress * 100).toInt()}% tamamlandı',
+              style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11),
+            ),
+          ],
+        ),
       ),
     );
   }

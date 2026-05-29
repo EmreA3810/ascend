@@ -1,0 +1,420 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../user/providers/user_provider.dart';
+import '../data/quest_model.dart';
+import '../providers/quest_provider.dart';
+
+class AddQuestBottomSheet extends ConsumerStatefulWidget {
+  const AddQuestBottomSheet({super.key});
+
+  @override
+  ConsumerState<AddQuestBottomSheet> createState() => _AddQuestBottomSheetState();
+}
+
+class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+
+  int _selectedXp = 50;
+  String _selectedCategory = 'daily';
+  String _selectedStatBoost = 'focus';
+  String _selectedIcon = 'star';
+
+  final List<int> _xpOptions = const [30, 50, 80, 100, 150];
+  
+  final List<Map<String, String>> _categories = const [
+    {'value': 'daily', 'label': 'Günlük'},
+    {'value': 'weekly', 'label': 'Haftalık'},
+    {'value': 'custom', 'label': 'Özel'},
+  ];
+
+  final List<Map<String, String>> _stats = const [
+    {'value': 'focus', 'label': 'Odak', 'color': '0xFF00E5FF'},
+    {'value': 'energy', 'label': 'Enerji', 'color': '0xFF7C4DFF'},
+    {'value': 'knowledge', 'label': 'Bilgi', 'color': '0xFFFFAB40'},
+    {'value': 'strength', 'label': 'Güç', 'color': '0xFFFF4081'},
+  ];
+
+  final List<String> _icons = const [
+    'school',
+    'fitness_center',
+    'menu_book',
+    'timer',
+    'water_drop',
+    'star',
+    'work',
+    'design_services',
+  ];
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    super.dispose();
+  }
+
+  Color _getStatColor(String value) {
+    switch (value) {
+      case 'focus':
+        return AppColors.statFocus;
+      case 'energy':
+        return AppColors.statEnergy;
+      case 'knowledge':
+        return AppColors.statKnowledge;
+      case 'strength':
+        return AppColors.statStrength;
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  void _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final userAsync = ref.read(currentUserProvider);
+    final user = userAsync.value;
+    if (user == null) return;
+
+    final newQuest = QuestModel(
+      id: '',
+      title: _titleController.text.trim(),
+      xpReward: _selectedXp,
+      category: _selectedCategory,
+      iconName: _selectedIcon,
+      isCompleted: false,
+      createdAt: DateTime.now(),
+      statBoost: _selectedStatBoost,
+      progress: 0.0,
+    );
+
+    try {
+      await ref.read(questRepositoryProvider).addQuest(user.uid, newQuest);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Yeni görev başarıyla eklendi! 🚀'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Hata oluştu: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Keyboard safety: padding at bottom
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+      decoration: BoxDecoration(
+        color: AppColors.background.withValues(alpha: 0.95),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.25),
+            blurRadius: 20,
+            spreadRadius: 2,
+          )
+        ],
+      ),
+      child: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Handle bar
+              Center(
+                child: Container(
+                  width: 50,
+                  height: 5,
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    color: AppColors.textSecondary.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+              
+              Text(
+                'YENİ GÖREV EKLE',
+                style: GoogleFonts.inter(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  letterSpacing: 1.5,
+                  shadows: [
+                    Shadow(color: AppColors.primary.withValues(alpha: 0.8), blurRadius: 10),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Title input
+              Text(
+                'Görev Başlığı',
+                style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _titleController,
+                style: GoogleFonts.inter(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Ders çalış, egzersiz yap...',
+                  hintStyle: GoogleFonts.inter(color: AppColors.textSecondary.withValues(alpha: 0.5)),
+                  filled: true,
+                  fillColor: AppColors.cardBackground,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: AppColors.primary.withValues(alpha: 0.2)),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.primary),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.error),
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.error),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                ),
+                validator: (val) => val == null || val.trim().isEmpty ? 'Başlık boş olamaz' : null,
+              ),
+              const SizedBox(height: 20),
+
+              // XP Selector
+              Text(
+                'XP Ödülü',
+                style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: _xpOptions.map((xp) {
+                  final isSelected = _selectedXp == xp;
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _selectedXp = xp),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.success.withValues(alpha: 0.15) : AppColors.cardBackground,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected ? AppColors.success : AppColors.primary.withValues(alpha: 0.1),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              '+$xp XP',
+                              style: GoogleFonts.inter(
+                                color: isSelected ? AppColors.success : Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+
+              // Category Selector
+              Text(
+                'Kategori',
+                style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: _categories.map((cat) {
+                  final isSelected = _selectedCategory == cat['value'];
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _selectedCategory = cat['value']!),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.primary.withValues(alpha: 0.15) : AppColors.cardBackground,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected ? AppColors.primary : AppColors.primary.withValues(alpha: 0.1),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              cat['label']!,
+                              style: GoogleFonts.inter(
+                                color: isSelected ? AppColors.primary : Colors.white,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+
+              // Stat Boost Selector
+              Text(
+                'Stat Desteği',
+                style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: _stats.map((stat) {
+                  final isSelected = _selectedStatBoost == stat['value'];
+                  final color = _getStatColor(stat['value']!);
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _selectedStatBoost = stat['value']!),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          decoration: BoxDecoration(
+                            color: isSelected ? color.withValues(alpha: 0.15) : AppColors.cardBackground,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isSelected ? color : AppColors.primary.withValues(alpha: 0.1),
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              stat['label']!,
+                              style: GoogleFonts.inter(
+                                color: isSelected ? color : Colors.white,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+
+              // Icon Selector
+              Text(
+                'Simge Seç',
+                style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 52,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _icons.length,
+                  itemBuilder: (ctx, i) {
+                    final iconName = _icons[i];
+                    final isSelected = _selectedIcon == iconName;
+                    final iconData = QuestModel.iconFromName(iconName);
+
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedIcon = iconName),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.only(right: 10),
+                        width: 48,
+                        decoration: BoxDecoration(
+                          color: isSelected ? AppColors.primary.withValues(alpha: 0.2) : AppColors.cardBackground,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected ? AppColors.primary : AppColors.primary.withValues(alpha: 0.1),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Icon(
+                          iconData,
+                          color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                          size: 20,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 30),
+
+              // Action Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: BorderSide(color: AppColors.textSecondary.withValues(alpha: 0.3)),
+                        ),
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        'İptal',
+                        style: GoogleFonts.inter(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 5,
+                        shadowColor: AppColors.primary.withValues(alpha: 0.5),
+                      ),
+                      onPressed: _submit,
+                      child: Text(
+                        'Oluştur',
+                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

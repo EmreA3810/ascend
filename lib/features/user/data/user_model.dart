@@ -11,6 +11,9 @@ class UserModel {
   final DateTime? lastActiveDate;
   final String title;
   final Map<String, int> stats;
+  final int totalQuestsCompleted;
+  final int totalPomodoroSessions;
+  final int totalMinutesFocused;
 
   const UserModel({
     required this.uid,
@@ -23,6 +26,9 @@ class UserModel {
     this.lastActiveDate,
     required this.title,
     required this.stats,
+    this.totalQuestsCompleted = 0,
+    this.totalPomodoroSessions = 0,
+    this.totalMinutesFocused = 0,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
@@ -38,6 +44,9 @@ class UserModel {
       lastActiveDate: (map['lastActiveDate'] as Timestamp?)?.toDate(),
       title: map['title'] as String? ?? 'Acemi Savaşçı',
       stats: rawStats.map((k, v) => MapEntry(k, (v as num).toInt())),
+      totalQuestsCompleted: (map['totalQuestsCompleted'] as num?)?.toInt() ?? 0,
+      totalPomodoroSessions: (map['totalPomodoroSessions'] as num?)?.toInt() ?? 0,
+      totalMinutesFocused: (map['totalMinutesFocused'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -52,6 +61,9 @@ class UserModel {
         'lastActiveDate': lastActiveDate != null ? Timestamp.fromDate(lastActiveDate!) : null,
         'title': title,
         'stats': stats,
+        'totalQuestsCompleted': totalQuestsCompleted,
+        'totalPomodoroSessions': totalPomodoroSessions,
+        'totalMinutesFocused': totalMinutesFocused,
       };
 
   UserModel copyWith({
@@ -62,6 +74,9 @@ class UserModel {
     DateTime? lastActiveDate,
     String? title,
     Map<String, int>? stats,
+    int? totalQuestsCompleted,
+    int? totalPomodoroSessions,
+    int? totalMinutesFocused,
   }) {
     return UserModel(
       uid: uid,
@@ -74,6 +89,9 @@ class UserModel {
       lastActiveDate: lastActiveDate ?? this.lastActiveDate,
       title: title ?? this.title,
       stats: stats ?? this.stats,
+      totalQuestsCompleted: totalQuestsCompleted ?? this.totalQuestsCompleted,
+      totalPomodoroSessions: totalPomodoroSessions ?? this.totalPomodoroSessions,
+      totalMinutesFocused: totalMinutesFocused ?? this.totalMinutesFocused,
     );
   }
 }

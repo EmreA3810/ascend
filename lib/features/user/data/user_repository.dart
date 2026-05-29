@@ -78,6 +78,20 @@ class UserRepository {
     });
   }
 
+  /// Belirli bir stat'ı artır (FieldValue.increment kullanır)
+  Future<void> boostStat(String uid, String statName, int amount) async {
+    await _userDoc(uid).update({
+      'stats.$statName': FieldValue.increment(amount),
+    });
+  }
+
+  /// Genel sayaç artır (totalQuestsCompleted, totalPomodoroSessions, vb.)
+  Future<void> incrementCounter(String uid, String field, int amount) async {
+    await _userDoc(uid).update({
+      field: FieldValue.increment(amount),
+    });
+  }
+
   int _xpForLevel(int level) => 500 + (level - 1) * 200;
 
   String _titleForLevel(int level) {

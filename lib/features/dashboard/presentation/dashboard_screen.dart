@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/glassmorphic_card.dart';
+import '../../../core/widgets/animated_stat_bar.dart';
+import '../../../core/widgets/xp_gain_popup.dart';
 import '../../user/providers/user_provider.dart';
 import '../../user/data/user_model.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../quests/providers/quest_provider.dart';
+import '../../quests/data/quest_model.dart';
+import '../../pomodoro/providers/pomodoro_provider.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -46,6 +54,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     super.dispose();
   }
 
+  String _formatElapsedTime(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.isNegative) return 'Şimdi';
+    if (diff.inSeconds < 60) return 'Şimdi';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} dk önce';
+    if (diff.inHours < 24) return '${diff.inHours} sa önce';
+    return DateFormat('dd.MM.yyyy').format(dt);
+  }
+
   @override
   Widget build(BuildContext context) {
     final userAsync = ref.watch(currentUserProvider);
@@ -57,32 +74,65 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       ),
       error: (e, _) => Scaffold(
         backgroundColor: AppColors.background,
-        body: Center(child: Text('Hata: $e', style: const TextStyle(color: Colors.red))),
+        body: Center(child: Text('Hata: $e', style: GoogleFonts.inter(color: AppColors.error))),
       ),
       data: (user) {
-        final displayUser = user ?? const UserModel(
-          uid: '',
-          displayName: 'Savaşçı',
-          email: '',
-          level: 1,
-          xp: 0,
-          xpToNextLevel: 500,
-          streak: 0,
-          title: 'Acemi Savaşçı',
-          stats: {'focus': 5, 'energy': 5, 'knowledge': 5, 'strength': 5},
-        );
-        final xpRatio = displayUser.xpToNextLevel > 0
-            ? displayUser.xp / displayUser.xpToNextLevel
+        if (user == null) {
+          return const Scaffold(
+            backgroundColor: AppColors.background,
+            body: Center(child: CircularProgressIndicator(color: AppColors.primary)),
+          );
+        }
+
+        final xpRatio = user.xpToNextLevel > 0
+            ? user.xp / user.xpToNextLevel
             : 0.0;
         if (_previousXpRatio != xpRatio) {
           WidgetsBinding.instance.addPostFrameCallback((_) => _animateXp(xpRatio));
         }
-        return _buildBody(context, displayUser);
+
+        return _buildBody(context, user);
       },
     );
   }
 
   Widget _buildBody(BuildContext context, UserModel user) {
+    final dailyQuestsAsync = ref.watch(dailyQuestsProvider);
+    final todaySessionsAsync = ref.watch(todaySessionsProvider);
+
+    // Merge activities
+    final completedQuests = dailyQuestsAsync.value?.where((q) => q.isCompleted).toList() ?? [];
+    final completedSessions = todaySessionsAsync.value ?? [];
+
+    final List<Map<String, dynamic>> activities = [];
+    
+    for (final q in completedQuests) {
+      activities.add({
+        'title': '${q.title} Tamamlandı',
+        'time': q.completedAt ?? q.createdAt,
+        'xp': '+${q.xpReward} XP',
+        'icon': QuestModel.iconFromName(q.iconName),
+        'color': AppColors.success,
+      });
+    }
+
+    for (final s in completedSessions) {
+      activities.add({
+        'title': '${s.workMinutes} dk Pomodoro',
+        'time': s.endedAt,
+        'xp': '+${s.xpEarned} XP',
+        'icon': Icons.timer_rounded,
+        'color': AppColors.secondary,
+      });
+    }
+
+    // Sort by time descending
+    activities.sort((a, b) {
+      final tA = a['time'] as DateTime;
+      final tB = b['time'] as DateTime;
+      return tB.compareTo(tA);
+    });
+
     return Scaffold(
       backgroundColor: AppColors.background,
       body: CustomScrollView(
@@ -94,18 +144,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               delegate: SliverChildListDelegate([
                 _buildHeroCard(user),
                 const SizedBox(height: 20),
-                _buildStatsRow(user),
+                
+                // Character Stats Panel (Using GlassmorphicCard and AnimatedStatBars)
+                _buildStatsPanel(user),
                 const SizedBox(height: 20),
+                
+                // Daily Quests Panel
                 _buildSectionTitle('Günlük Görevler', Icons.local_fire_department),
                 const SizedBox(height: 12),
-                _buildQuestCard('1 Saat Kitap Oku', '+50 XP', Icons.menu_book, 0.7),
-                _buildQuestCard('Spor Yap', '+100 XP', Icons.fitness_center, 0.0),
-                _buildQuestCard('2 Pomodoro Tamamla', '+80 XP', Icons.timer, 1.0, done: true),
+                _buildDailyQuestsPanel(user.uid, dailyQuestsAsync),
                 const SizedBox(height: 20),
+                
+                // Activities Panel
                 _buildSectionTitle('Son Aktiviteler', Icons.history),
                 const SizedBox(height: 12),
-                _buildActivityCard('Ders Çalışma', '2 saat önce', '+120 XP', Icons.school),
-                _buildActivityCard('Spor', 'Dün', '+100 XP', Icons.fitness_center),
+                _buildActivityFeed(activities),
                 const SizedBox(height: 20),
               ]),
             ),
@@ -124,9 +177,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         shaderCallback: (bounds) => const LinearGradient(
           colors: [AppColors.primary, AppColors.secondary],
         ).createShader(bounds),
-        child: const Text(
+        child: Text(
           'ASCEND',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 3, color: Colors.white),
+          style: GoogleFonts.inter(fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 3, color: Colors.white),
         ),
       ),
       actions: [
@@ -142,7 +195,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             children: [
               const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
               const SizedBox(width: 4),
-              Text('${user.streak} Gün', style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13)),
+              Text('${user.streak} Gün', style: GoogleFonts.inter(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13)),
             ],
           ),
         ),
@@ -155,8 +208,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             }
           },
           itemBuilder: (_) => [
-            const PopupMenuItem(value: 'signout', child: Row(
-              children: [Icon(Icons.logout, color: Colors.white70, size: 18), SizedBox(width: 8), Text('Çıkış Yap', style: TextStyle(color: Colors.white))],
+            PopupMenuItem(value: 'signout', child: Row(
+              children: [
+                const Icon(Icons.logout, color: Colors.white70, size: 18), 
+                const SizedBox(width: 8), 
+                Text('Çıkış Yap', style: GoogleFonts.inter(color: Colors.white))
+              ],
             )),
           ],
         ),
@@ -166,18 +223,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   Widget _buildHeroCard(UserModel user) {
-    return Container(
+    return GlassmorphicCard(
+      borderColor: AppColors.primary,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [AppColors.primary.withValues(alpha: 0.25), AppColors.secondary.withValues(alpha: 0.1)],
-        ),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.4)),
-        boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.2), blurRadius: 20)],
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -205,11 +253,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                         border: Border.all(color: AppColors.secondary.withValues(alpha: 0.4)),
                       ),
                       child: Text('LVL ${user.level} · ${user.title}',
-                          style: const TextStyle(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 12)),
+                          style: GoogleFonts.inter(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 12)),
                     ),
                     const SizedBox(height: 6),
                     Text(user.displayName,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22)),
+                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
                   ],
                 ),
               ),
@@ -219,12 +267,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('XP', style: TextStyle(
+              Text('XP', style: GoogleFonts.inter(
                 color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 13,
                 shadows: [Shadow(color: AppColors.success.withValues(alpha: 0.8), blurRadius: 6)],
               )),
               Text('${user.xp} / ${user.xpToNextLevel}',
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12)),
             ],
           ),
           const SizedBox(height: 8),
@@ -251,40 +299,57 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           ),
           const SizedBox(height: 6),
           Text('${user.xpToNextLevel - user.xp} XP kaldı → Level ${user.level + 1}',
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+              style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11)),
         ],
       ),
     );
   }
 
-  Widget _buildStatsRow(UserModel user) {
-    final stats = user.stats;
-    return Row(
-      children: [
-        Expanded(child: _buildStatCard(Icons.psychology, 'Odak', '${stats['focus'] ?? 0}', AppColors.secondary)),
-        const SizedBox(width: 12),
-        Expanded(child: _buildStatCard(Icons.bolt, 'Enerji', '${stats['energy'] ?? 0}', AppColors.primary)),
-        const SizedBox(width: 12),
-        Expanded(child: _buildStatCard(Icons.auto_stories, 'Bilgi', '${stats['knowledge'] ?? 0}', Colors.orangeAccent)),
-      ],
-    );
-  }
-
-  Widget _buildStatCard(IconData icon, String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.1), blurRadius: 10)],
-      ),
+  Widget _buildStatsPanel(UserModel user) {
+    return GlassmorphicCard(
+      borderColor: AppColors.secondary,
+      padding: const EdgeInsets.all(16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: color, size: 28),
-          const SizedBox(height: 6),
-          Text(value, style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 20)),
-          Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+          Row(
+            children: [
+              const Icon(Icons.bar_chart_rounded, color: AppColors.secondary, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Karakter Statları',
+                style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          AnimatedStatBar(
+            label: 'Odak (Focus)',
+            value: user.stats['focus'] ?? 0,
+            maxValue: 100,
+            color: AppColors.statFocus,
+          ),
+          const SizedBox(height: 12),
+          AnimatedStatBar(
+            label: 'Enerji (Energy)',
+            value: user.stats['energy'] ?? 0,
+            maxValue: 100,
+            color: AppColors.statEnergy,
+          ),
+          const SizedBox(height: 12),
+          AnimatedStatBar(
+            label: 'Bilgi (Knowledge)',
+            value: user.stats['knowledge'] ?? 0,
+            maxValue: 100,
+            color: AppColors.statKnowledge,
+          ),
+          const SizedBox(height: 12),
+          AnimatedStatBar(
+            label: 'Güç (Strength)',
+            value: user.stats['strength'] ?? 0,
+            maxValue: 100,
+            color: AppColors.statStrength,
+          ),
         ],
       ),
     );
@@ -295,12 +360,54 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       children: [
         Icon(icon, color: AppColors.primary, size: 20),
         const SizedBox(width: 8),
-        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+        Text(title, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
       ],
     );
   }
 
-  Widget _buildQuestCard(String title, String reward, IconData icon, double progress, {bool done = false}) {
+  Widget _buildDailyQuestsPanel(String uid, AsyncValue<List<QuestModel>> dailyQuestsAsync) {
+    return dailyQuestsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+      error: (err, stack) => Center(
+        child: Text('Görevler yüklenirken hata oluştu', style: GoogleFonts.inter(color: AppColors.error)),
+      ),
+      data: (quests) {
+        if (quests.isEmpty) {
+          return GlassmorphicCard(
+            borderColor: AppColors.primary,
+            child: Column(
+              children: [
+                Text(
+                  'Bugün için görev bulunmuyor!',
+                  style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () {
+                    ref.read(questRepositoryProvider).ensureDailyQuests(uid);
+                  },
+                  child: Text('Günlük Görevleri Oluştur', style: GoogleFonts.inter(color: Colors.white)),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          children: quests.map((q) => _buildQuestCard(uid, q)).toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildQuestCard(String uid, QuestModel quest) {
+    final isDone = quest.isCompleted;
+    final iconData = QuestModel.iconFromName(quest.iconName);
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
@@ -308,59 +415,96 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: done ? AppColors.success.withValues(alpha: 0.4) : AppColors.primary.withValues(alpha: 0.15),
+          color: isDone ? AppColors.success.withValues(alpha: 0.4) : AppColors.primary.withValues(alpha: 0.15),
         ),
       ),
-      child: Column(
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: (done ? AppColors.success : AppColors.primary).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: done ? AppColors.success : AppColors.primary, size: 20),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: TextStyle(
-                      color: done ? AppColors.textSecondary : Colors.white,
-                      fontWeight: FontWeight.bold,
-                      decoration: done ? TextDecoration.lineThrough : null,
-                    )),
-                    const SizedBox(height: 2),
-                    Text(reward, style: const TextStyle(color: AppColors.success, fontSize: 12)),
-                  ],
-                ),
-              ),
-              done
-                  ? const Icon(Icons.check_circle, color: AppColors.success, size: 24)
-                  : IconButton(icon: const Icon(Icons.radio_button_unchecked, color: AppColors.textSecondary), onPressed: () {}),
-            ],
-          ),
-          if (!done && progress > 0) ...[
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progress,
-                backgroundColor: AppColors.background,
-                valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                minHeight: 4,
-              ),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: (isDone ? AppColors.success : AppColors.primary).withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
             ),
-          ],
+            child: Icon(iconData, color: isDone ? AppColors.success : AppColors.primary, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  quest.title,
+                  style: GoogleFonts.inter(
+                    color: isDone ? AppColors.textSecondary : Colors.white,
+                    fontWeight: FontWeight.bold,
+                    decoration: isDone ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text('+${quest.xpReward} XP', style: GoogleFonts.inter(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () async {
+              final nextCompleted = !quest.isCompleted;
+              await ref.read(questRepositoryProvider).toggleQuest(uid, quest.id, nextCompleted);
+              
+              if (nextCompleted && mounted) {
+                XpGainPopup.show(
+                  context,
+                  xp: quest.xpReward,
+                  statName: quest.statBoost,
+                  statAmount: 1,
+                );
+              }
+            },
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: isDone
+                  ? const Icon(Icons.check_circle, color: AppColors.success, size: 26, key: ValueKey(true))
+                  : const Icon(Icons.radio_button_unchecked, color: AppColors.textSecondary, size: 26, key: ValueKey(false)),
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildActivityCard(String title, String time, String xp, IconData icon) {
+  Widget _buildActivityFeed(List<Map<String, dynamic>> activities) {
+    if (activities.isEmpty) {
+      return GlassmorphicCard(
+        borderColor: AppColors.textSecondary.withValues(alpha: 0.2),
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Text(
+              'Bugün henüz bir aktivite yok. 🎯',
+              style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13),
+            ),
+          ),
+        ),
+      );
+    }
+
+    // Limit to 5 activities
+    final displayedActivities = activities.take(5).toList();
+
+    return Column(
+      children: displayedActivities.map((act) {
+        return _buildActivityCard(act);
+      }).toList(),
+    );
+  }
+
+  Widget _buildActivityCard(Map<String, dynamic> act) {
+    final title = act['title'] as String;
+    final timeStr = _formatElapsedTime(act['time'] as DateTime);
+    final xp = act['xp'] as String;
+    final icon = act['icon'] as IconData;
+    final color = act['color'] as Color;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -370,18 +514,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.secondary.withValues(alpha: 0.1),
+              color: color.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(icon, color: AppColors.secondary, size: 18),
+            child: Icon(icon, color: color, size: 18),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                Text(time, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                Text(title, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                Text(timeStr, style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11)),
               ],
             ),
           ),
@@ -391,7 +535,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               color: AppColors.success.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: Text(xp, style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 12)),
+            child: Text(xp, style: GoogleFonts.inter(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 12)),
           ),
         ],
       ),

@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/glassmorphic_card.dart';
 import '../../user/data/user_model.dart';
 import '../../user/providers/user_provider.dart';
+import '../../pomodoro/providers/pomodoro_provider.dart';
+import '../../pomodoro/data/pomodoro_session_model.dart';
 
 class StatsScreen extends ConsumerWidget {
   const StatsScreen({super.key});
@@ -10,112 +16,65 @@ class StatsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync = ref.watch(currentUserProvider);
-
-    return userAsync.when(
-      loading: _loadingScaffold,
-      error: (e, _) => _errorScaffold(e),
-      data: (user) => _buildBody(context, user ?? _fallbackUser()),
-    );
-  }
-
-  static UserModel _fallbackUser() {
-    return const UserModel(
-      uid: '',
-      displayName: 'Savasci',
-      email: '',
-      level: 1,
-      xp: 0,
-      xpToNextLevel: 500,
-      streak: 0,
-      title: 'Acemi Savasci',
-      stats: {'focus': 5, 'energy': 5, 'knowledge': 5, 'strength': 5},
-    );
-  }
-
-  static Widget _loadingScaffold() {
-    return const Scaffold(
-      backgroundColor: AppColors.background,
-      body: Center(child: CircularProgressIndicator(color: AppColors.primary)),
-    );
-  }
-
-  static Widget _errorScaffold(Object error) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Text(
-            'Baglanti hatasi: $error',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white70),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBody(BuildContext context, UserModel user) {
-    final xpRemaining = (user.xpToNextLevel - user.xp).clamp(
-      0,
-      user.xpToNextLevel,
-    );
-    final xpRatio = user.xpToNextLevel > 0 ? user.xp / user.xpToNextLevel : 0.0;
+    final weekSessionsAsync = ref.watch(weekSessionsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          'Istatistik',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        backgroundColor: AppColors.background,
+        elevation: 0,
+        title: Text(
+          'İstatistikler',
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeroCard(user, xpRatio, xpRemaining),
-            const SizedBox(height: 20),
-            _buildSectionTitle('Genel Ozet', Icons.insights),
-            const SizedBox(height: 12),
-            _buildSummaryRow(user),
-            const SizedBox(height: 20),
-            _buildSectionTitle('Karakter Ozellikleri', Icons.bar_chart),
-            const SizedBox(height: 12),
-            _buildStatsGrid(user),
-            const SizedBox(height: 20),
-            _buildSectionTitle('Aktivite Gecmisi', Icons.history),
-            const SizedBox(height: 12),
-            _buildEmptyState(),
-          ],
-        ),
+      body: userAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+        error: (e, _) => Center(child: Text('Hata: $e', style: GoogleFonts.inter(color: AppColors.error))),
+        data: (user) {
+          if (user == null) {
+            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+          }
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeroCard(user),
+                const SizedBox(height: 20),
+                
+                // Chart Panel
+                _buildSectionTitle('Haftalık Odak Grafiği', Icons.bar_chart_rounded),
+                const SizedBox(height: 12),
+                _buildChartPanel(weekSessionsAsync),
+                const SizedBox(height: 24),
+                
+                // Weekly history list
+                _buildSectionTitle('Bu Haftanın Odak Seansları', Icons.history),
+                const SizedBox(height: 12),
+                _buildWeeklyHistoryList(weekSessionsAsync),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildHeroCard(UserModel user, double xpRatio, int xpRemaining) {
-    return Container(
-      width: double.infinity,
+  Widget _buildHeroCard(UserModel user) {
+    final xpRemaining = (user.xpToNextLevel - user.xp).clamp(0, user.xpToNextLevel);
+    final xpRatio = user.xpToNextLevel > 0 ? user.xp / user.xpToNextLevel : 0.0;
+
+    return GlassmorphicCard(
+      borderColor: AppColors.primary,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            AppColors.primary.withValues(alpha: 0.35),
-            AppColors.secondary.withValues(alpha: 0.1),
-          ],
-        ),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.25)),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             user.displayName,
-            style: const TextStyle(
+            style: GoogleFonts.inter(
               color: Colors.white,
               fontWeight: FontWeight.bold,
               fontSize: 20,
@@ -124,7 +83,7 @@ class StatsScreen extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(
             user.title,
-            style: const TextStyle(
+            style: GoogleFonts.inter(
               color: AppColors.textSecondary,
               fontSize: 12,
             ),
@@ -132,10 +91,10 @@ class StatsScreen extends ConsumerWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              _buildHeroChip('Level ${user.level}', Icons.auto_awesome),
+              _buildHeroChip('Seviye ${user.level}', Icons.auto_awesome),
               const SizedBox(width: 10),
               _buildHeroChip(
-                '${user.streak} gun streak',
+                '${user.streak} Gün Seri',
                 Icons.local_fire_department,
               ),
             ],
@@ -172,10 +131,10 @@ class StatsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '$xpRemaining XP kaldi',
-            style: const TextStyle(
+            'Sonraki seviyeye $xpRemaining XP kaldı',
+            style: GoogleFonts.inter(
               color: AppColors.textSecondary,
-              fontSize: 12,
+              fontSize: 11,
             ),
           ),
         ],
@@ -198,7 +157,7 @@ class StatsScreen extends ConsumerWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(
+            style: GoogleFonts.inter(
               color: Colors.white,
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -209,173 +168,237 @@ class StatsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSummaryRow(UserModel user) {
+  Widget _buildChartPanel(AsyncValue<List<PomodoroSessionModel>> weekSessionsAsync) {
+    return weekSessionsAsync.when(
+      loading: () => Container(
+        height: 250,
+        alignment: Alignment.center,
+        child: const CircularProgressIndicator(color: AppColors.primary),
+      ),
+      error: (e, _) => Container(
+        height: 250,
+        alignment: Alignment.center,
+        child: Text('Grafik yüklenemedi: $e', style: GoogleFonts.inter(color: AppColors.error)),
+      ),
+      data: (sessions) {
+        // Prepare weekday data: index 0 (Mon) to 6 (Sun)
+        final List<double> workMinutesPerDay = List.filled(7, 0.0);
+        final List<double> breakMinutesPerDay = List.filled(7, 0.0);
+
+        for (final s in sessions) {
+          final weekday = s.startedAt.weekday; // 1 (Mon) to 7 (Sun)
+          workMinutesPerDay[weekday - 1] += s.workMinutes.toDouble();
+          breakMinutesPerDay[weekday - 1] += s.breakMinutes.toDouble();
+        }
+
+        // Determine max Y for scale
+        double maxVal = 30.0; // minimum scale size
+        for (int i = 0; i < 7; i++) {
+          if (workMinutesPerDay[i] > maxVal) maxVal = workMinutesPerDay[i];
+          if (breakMinutesPerDay[i] > maxVal) maxVal = breakMinutesPerDay[i];
+        }
+        maxVal = (maxVal / 10).ceil() * 10.0 + 10.0; // round up to multiple of 10
+
+        return GlassmorphicCard(
+          borderColor: AppColors.secondary.withValues(alpha: 0.4),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Legend
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildLegendItem('Çalışma (dk)', AppColors.secondary),
+                  const SizedBox(width: 20),
+                  _buildLegendItem('Mola (dk)', AppColors.primary),
+                ],
+              ),
+              const SizedBox(height: 24),
+              // Chart
+              SizedBox(
+                height: 180,
+                child: BarChart(
+                  BarChartData(
+                    alignment: BarChartAlignment.spaceAround,
+                    maxY: maxVal,
+                    barTouchData: BarTouchData(
+                      enabled: true,
+                      touchTooltipData: BarTouchTooltipData(
+                        getTooltipColor: (_) => AppColors.cardBackground,
+                        tooltipBorder: BorderSide(color: AppColors.primary.withValues(alpha: 0.5)),
+                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                          final typeName = rodIndex == 0 ? 'Çalışma' : 'Mola';
+                          return BarTooltipItem(
+                            '$typeName\n${rod.toY.round()} dk',
+                            GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                          );
+                        },
+                      ),
+                    ),
+                    titlesData: FlTitlesData(
+                      show: true,
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+                            final idx = value.toInt();
+                            if (idx >= 0 && idx < 7) {
+                              return SideTitleWidget(
+                                meta: meta,
+                                child: Text(days[idx], style: GoogleFonts.inter(color: Colors.white.withValues(alpha: 0.7), fontSize: 10)),
+                              );
+                            }
+                            return const SizedBox.shrink();
+                          },
+                        ),
+                      ),
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 28,
+                          getTitlesWidget: (value, meta) {
+                            return Text('${value.toInt()}', style: GoogleFonts.inter(color: Colors.white70, fontSize: 10));
+                          },
+                        ),
+                      ),
+                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                    ),
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      getDrawingHorizontalLine: (val) => FlLine(
+                        color: AppColors.surfaceLight.withValues(alpha: 0.5),
+                        strokeWidth: 1,
+                      ),
+                    ),
+                    borderData: FlBorderData(show: false),
+                    barGroups: List.generate(7, (i) {
+                      return BarChartGroupData(
+                        x: i,
+                        barRods: [
+                          BarChartRodData(
+                            toY: workMinutesPerDay[i],
+                            color: AppColors.secondary,
+                            width: 6,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          BarChartRodData(
+                            toY: breakMinutesPerDay[i],
+                            color: AppColors.primary,
+                            width: 6,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ],
+                      );
+                    }),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLegendItem(String label, Color color) {
     return Row(
       children: [
-        Expanded(
-          child: _buildSummaryCard(
-            'XP',
-            '${user.xp}',
-            Icons.bolt,
-            AppColors.success,
-          ),
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(3)),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildSummaryCard(
-            'Seviye',
-            '${user.level}',
-            Icons.emoji_events,
-            AppColors.primary,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _buildSummaryCard(
-            'Streak',
-            '${user.streak} gun',
-            Icons.local_fire_department,
-            Colors.orangeAccent,
-          ),
+        const SizedBox(width: 6),
+        Text(
+          label,
+          style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
         ),
       ],
     );
   }
 
-  Widget _buildSummaryCard(
-    String label,
-    String value,
-    IconData icon,
-    Color color,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+  Widget _buildWeeklyHistoryList(AsyncValue<List<PomodoroSessionModel>> weekSessionsAsync) {
+    return weekSessionsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Yüklenemedi: $e')),
+      data: (sessions) {
+        if (sessions.isEmpty) {
+          return Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: BorderRadius.circular(16),
             ),
-          ),
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 11,
+            child: Column(
+              children: [
+                const Icon(Icons.auto_graph_rounded, color: AppColors.textSecondary, size: 32),
+                const SizedBox(height: 8),
+                Text(
+                  'Bu hafta henüz odak seansı yok.',
+                  style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
+                ),
+              ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
+          );
+        }
 
-  Widget _buildStatsGrid(UserModel user) {
-    final stats = [
-      {
-        'label': 'Odak',
-        'value': user.stats['focus'] ?? 0,
-        'max': 50,
-        'color': AppColors.secondary,
-      },
-      {
-        'label': 'Enerji',
-        'value': user.stats['energy'] ?? 0,
-        'max': 50,
-        'color': AppColors.primary,
-      },
-      {
-        'label': 'Bilgi',
-        'value': user.stats['knowledge'] ?? 0,
-        'max': 50,
-        'color': Colors.orangeAccent,
-      },
-      {
-        'label': 'Guc',
-        'value': user.stats['strength'] ?? 0,
-        'max': 50,
-        'color': Colors.pinkAccent,
-      },
-    ];
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: sessions.length,
+          itemBuilder: (ctx, i) {
+            final session = sessions[i];
+            final formattedDate = DateFormat('dd.MM.yyyy, HH:mm').format(session.startedAt);
 
-    return Column(
-      children: stats.map((s) {
-        final value = s['value'] as int;
-        final max = s['max'] as int;
-        final color = s['color'] as Color;
-        final ratio = max > 0 ? value / max : 0.0;
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppColors.cardBackground,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: color.withValues(alpha: 0.2)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    s['label'] as String,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  Text(
-                    '$value / $max',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+            return Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.cardBackground,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
               ),
-              const SizedBox(height: 8),
-              Stack(
+              child: Row(
                 children: [
                   Container(
-                    height: 8,
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.background,
-                      borderRadius: BorderRadius.circular(6),
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.timer_rounded, color: AppColors.primary, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${session.workMinutes} Dakika Odaklanma',
+                          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          formattedDate,
+                          style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11),
+                        ),
+                      ],
                     ),
                   ),
-                  FractionallySizedBox(
-                    widthFactor: ratio.clamp(0.0, 1.0),
-                    child: Container(
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: color,
-                        borderRadius: BorderRadius.circular(6),
-                        boxShadow: [
-                          BoxShadow(
-                            color: color.withValues(alpha: 0.4),
-                            blurRadius: 6,
-                          ),
-                        ],
-                      ),
-                    ),
+                  Text(
+                    '+${session.xpEarned} XP',
+                    style: GoogleFonts.inter(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 13),
                   ),
                 ],
               ),
-            ],
-          ),
+            );
+          },
         );
-      }).toList(),
+      },
     );
   }
 
@@ -384,46 +407,8 @@ class StatsScreen extends ConsumerWidget {
       children: [
         Icon(icon, color: AppColors.primary, size: 18),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 16,
-          ),
-        ),
+        Text(title, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
       ],
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
-      ),
-      child: Column(
-        children: const [
-          Icon(Icons.auto_graph, color: AppColors.textSecondary, size: 28),
-          SizedBox(height: 8),
-          Text(
-            'Henuz veri yok',
-            style: TextStyle(
-              color: Colors.white70,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          SizedBox(height: 6),
-          Text(
-            'Pomodoro seanslari ve gorev tamamlama gecmisi burada gorunecek.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
-          ),
-        ],
-      ),
     );
   }
 }
