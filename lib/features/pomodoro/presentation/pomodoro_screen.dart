@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:audioplayers/audioplayers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/xp_gain_popup.dart';
+import '../../../core/widgets/glassmorphic_card.dart';
 import '../data/pomodoro_session_model.dart';
 import '../providers/pomodoro_provider.dart';
 import '../../user/providers/user_provider.dart';
@@ -35,6 +36,22 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
   bool _isResting = false;
   int _restSecondsLeft = 30;
   Timer? _restTimer;
+
+  // Academic Assistant state
+  List<Map<String, dynamic>>? _academicGoals;
+  final TextEditingController _academicGoalController = TextEditingController();
+  final TextEditingController _academicNoteController = TextEditingController();
+
+  // Reading Assistant state
+  final TextEditingController _readingStartPageController = TextEditingController(text: '1');
+  final TextEditingController _readingEndPageController = TextEditingController(text: '20');
+  final TextEditingController _readingNotesController = TextEditingController();
+
+  // Coding Assistant state
+  List<Map<String, dynamic>>? _codingTasks;
+  final TextEditingController _codingTaskController = TextEditingController();
+  final TextEditingController _codingNoteController = TextEditingController();
+  String _codingSprintStage = 'Planlama'; // 'Planlama', 'Kodlama', 'Debug', 'Test'
 
   late AnimationController _pulseController;
 
@@ -68,6 +85,22 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     },
   ];
 
+  void _initAcademicGoals() {
+    _academicGoals ??= [
+      {'title': 'Konu tekrarı yap 📖', 'isCompleted': false},
+      {'title': 'Pratik/Soru çözümü yap 📝', 'isCompleted': false},
+      {'title': 'Yanlışlarını analiz et 🔍', 'isCompleted': false},
+    ];
+  }
+
+  void _initCodingTasks() {
+    _codingTasks ??= [
+      {'title': 'Seans planını yap 🗺️', 'isCompleted': false},
+      {'title': 'Kod yazımına başla 💻', 'isCompleted': false},
+      {'title': 'Test et & Hataları gider 🐞', 'isCompleted': false},
+    ];
+  }
+
   @override
   void initState() {
     super.initState();
@@ -82,6 +115,9 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     _playerSubscription = _player.onPlayerComplete.listen((event) {
       _nextTrack();
     });
+
+    _initAcademicGoals();
+    _initCodingTasks();
   }
 
   @override
@@ -94,6 +130,13 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     if (_isImmersive) {
       _immersiveOverlay?.remove();
     }
+    _academicGoalController.dispose();
+    _academicNoteController.dispose();
+    _readingStartPageController.dispose();
+    _readingEndPageController.dispose();
+    _readingNotesController.dispose();
+    _codingTaskController.dispose();
+    _codingNoteController.dispose();
     super.dispose();
   }
 
@@ -234,7 +277,18 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
   }
 
   Future<void> _showReadingPageDialog(String uid, int pomodoroXp) async {
-    final controller = TextEditingController();
+    int prefilledPages = 0;
+    try {
+      final start = int.tryParse(_readingStartPageController.text.trim()) ?? 0;
+      final end = int.tryParse(_readingEndPageController.text.trim()) ?? 0;
+      if (end > start) {
+        prefilledPages = end - start;
+      }
+    } catch (_) {}
+
+    final controller = TextEditingController(
+      text: prefilledPages > 0 ? prefilledPages.toString() : '',
+    );
     final formKey = GlobalKey<FormState>();
 
     final pages = await showDialog<int>(
@@ -895,6 +949,582 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     return total > 0 ? (1.0 - (_secondsLeft / total)).clamp(0.0, 1.0) : 0.0;
   }
 
+  Widget _buildCategoryAssistantCard() {
+    switch (_selectedFocusArea) {
+      case 'academic':
+        return _buildAcademicAssistant();
+      case 'reading':
+        return _buildReadingAssistant();
+      case 'coding':
+        return _buildCodingAssistant();
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildAcademicAssistant() {
+    _initAcademicGoals();
+    final accentColor = AppColors.statKnowledge;
+
+    return GlassmorphicCard(
+      padding: const EdgeInsets.all(16),
+      borderColor: accentColor,
+      borderRadius: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.school_rounded, color: accentColor, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Akademik Çalışma Planı',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Bu odak seansındaki hedeflerini belirle ve tamamla:',
+            style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+
+          // Goals Checklist
+          if (_academicGoals != null)
+            ...List.generate(_academicGoals!.length, (index) {
+              final goal = _academicGoals![index];
+              final isCompleted = goal['isCompleted'] as bool;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 2.0),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: isCompleted,
+                      activeColor: accentColor,
+                      checkColor: Colors.white,
+                      side: BorderSide(color: accentColor.withValues(alpha: 0.5)),
+                      onChanged: (val) {
+                        setState(() {
+                          goal['isCompleted'] = val ?? false;
+                        });
+                      },
+                    ),
+                    Expanded(
+                      child: Text(
+                        goal['title'] as String,
+                        style: GoogleFonts.inter(
+                          color: isCompleted ? AppColors.textSecondary : Colors.white,
+                          fontSize: 13,
+                          decoration: isCompleted ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 16, color: AppColors.error),
+                      onPressed: () {
+                        setState(() {
+                          _academicGoals!.removeAt(index);
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              );
+            }),
+
+          const SizedBox(height: 4),
+          // Add goal field
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _academicGoalController,
+                  style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Yeni hedef ekle...',
+                    hintStyle: GoogleFonts.inter(color: AppColors.textSecondary.withValues(alpha: 0.5), fontSize: 13),
+                    filled: true,
+                    fillColor: AppColors.background,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: accentColor.withValues(alpha: 0.2)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: accentColor),
+                    ),
+                  ),
+                  onSubmitted: (val) {
+                    if (val.trim().isNotEmpty) {
+                      setState(() {
+                        _academicGoals!.add({'title': val.trim(), 'isCompleted': false});
+                        _academicGoalController.clear();
+                      });
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                style: IconButton.styleFrom(
+                  backgroundColor: accentColor.withValues(alpha: 0.2),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                icon: Icon(Icons.add, color: accentColor, size: 20),
+                onPressed: () {
+                  final val = _academicGoalController.text;
+                  if (val.trim().isNotEmpty) {
+                    setState(() {
+                      _academicGoals!.add({'title': val.trim(), 'isCompleted': false});
+                      _academicGoalController.clear();
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Study Notes Text Field
+          Text(
+            'Hızlı Çalışma Notları / Formüller:',
+            style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _academicNoteController,
+            maxLines: 2,
+            style: GoogleFonts.inter(color: Colors.white, fontSize: 12),
+            decoration: InputDecoration(
+              hintText: 'Formülleri, önemli terimleri veya notları buraya karala...',
+              hintStyle: GoogleFonts.inter(color: AppColors.textSecondary.withValues(alpha: 0.4), fontSize: 12),
+              filled: true,
+              fillColor: AppColors.background,
+              contentPadding: const EdgeInsets.all(10),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: accentColor.withValues(alpha: 0.2)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: accentColor),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReadingAssistant() {
+    final accentColor = AppColors.primary; // Purple
+
+    // Calculate pages automatically
+    int totalPages = 0;
+    try {
+      final start = int.tryParse(_readingStartPageController.text.trim()) ?? 0;
+      final end = int.tryParse(_readingEndPageController.text.trim()) ?? 0;
+      if (end > start) {
+        totalPages = end - start;
+      }
+    } catch (_) {}
+
+    return GlassmorphicCard(
+      padding: const EdgeInsets.all(16),
+      borderColor: accentColor,
+      borderRadius: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.menu_book_rounded, color: accentColor, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Kitap Okuma Günlüğü',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Şu anki okuma oturumunun detaylarını gir:',
+            style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+
+          // Start Page and End Page Inputs Side by Side
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Başlangıç Sayfası',
+                      style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11),
+                    ),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: _readingStartPageController,
+                      keyboardType: TextInputType.number,
+                      style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'örn. 1',
+                        hintStyle: GoogleFonts.inter(color: AppColors.textSecondary.withValues(alpha: 0.4), fontSize: 13),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: accentColor.withValues(alpha: 0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: accentColor),
+                        ),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hedef Sayfa',
+                      style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11),
+                    ),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: _readingEndPageController,
+                      keyboardType: TextInputType.number,
+                      style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+                      decoration: InputDecoration(
+                        hintText: 'örn. 20',
+                        hintStyle: GoogleFonts.inter(color: AppColors.textSecondary.withValues(alpha: 0.4), fontSize: 13),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: accentColor.withValues(alpha: 0.2)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: accentColor),
+                        ),
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          if (totalPages > 0) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.success.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline_rounded, color: AppColors.success, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Hedeflenen Okuma: $totalPages sayfa (+${totalPages * 3} XP)',
+                    style: GoogleFonts.inter(
+                      color: AppColors.success,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          // Reading notes and quotes
+          Text(
+            'Beğenilen Alıntılar / Günlük Çıkarım:',
+            style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _readingNotesController,
+            maxLines: 2,
+            style: GoogleFonts.inter(color: Colors.white, fontSize: 12),
+            decoration: InputDecoration(
+              hintText: 'Okurken aldığın notları veya günün çıkarımını yaz...',
+              hintStyle: GoogleFonts.inter(color: AppColors.textSecondary.withValues(alpha: 0.4), fontSize: 12),
+              filled: true,
+              fillColor: AppColors.background,
+              contentPadding: const EdgeInsets.all(10),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: accentColor.withValues(alpha: 0.2)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: accentColor),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCodingAssistant() {
+    _initCodingTasks();
+    final accentColor = AppColors.statFocus; // Cyan
+
+    final stages = ['Planlama', 'Kodlama', 'Hata Ayıklama', 'Test'];
+
+    return GlassmorphicCard(
+      padding: const EdgeInsets.all(16),
+      borderColor: accentColor,
+      borderRadius: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: accentColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.code_rounded, color: accentColor, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Yazılım Geliştirici Sprint Masası',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Sprint Stage Selector
+          Text(
+            'Sprint Aşaması:',
+            style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: stages.map((stage) {
+              final isSelected = _codingSprintStage == stage;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        _codingSprintStage = stage;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: isSelected ? accentColor.withValues(alpha: 0.2) : AppColors.background,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isSelected ? accentColor : AppColors.primary.withValues(alpha: 0.1),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        stage,
+                        style: GoogleFonts.inter(
+                          color: isSelected ? Colors.white : AppColors.textSecondary,
+                          fontSize: 10,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 14),
+
+          Text(
+            'Sprint Görev & Bug Listesi:',
+            style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+
+          // Coding Tasks Checklist
+          if (_codingTasks != null)
+            ...List.generate(_codingTasks!.length, (index) {
+              final task = _codingTasks![index];
+              final isCompleted = task['isCompleted'] as bool;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 2.0),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: isCompleted,
+                      activeColor: accentColor,
+                      checkColor: Colors.white,
+                      side: BorderSide(color: accentColor.withValues(alpha: 0.5)),
+                      onChanged: (val) {
+                        setState(() {
+                          task['isCompleted'] = val ?? false;
+                        });
+                      },
+                    ),
+                    Expanded(
+                      child: Text(
+                        task['title'] as String,
+                        style: GoogleFonts.inter(
+                          color: isCompleted ? AppColors.textSecondary : Colors.white,
+                          fontSize: 13,
+                          decoration: isCompleted ? TextDecoration.lineThrough : null,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 16, color: AppColors.error),
+                      onPressed: () {
+                        setState(() {
+                          _codingTasks!.removeAt(index);
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              );
+            }),
+
+          const SizedBox(height: 4),
+          // Add coding task field
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _codingTaskController,
+                  style: GoogleFonts.inter(color: Colors.white, fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: 'Yeni görev veya bug ekle...',
+                    hintStyle: GoogleFonts.inter(color: AppColors.textSecondary.withValues(alpha: 0.5), fontSize: 13),
+                    filled: true,
+                    fillColor: AppColors.background,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: accentColor.withValues(alpha: 0.2)),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide(color: accentColor),
+                    ),
+                  ),
+                  onSubmitted: (val) {
+                    if (val.trim().isNotEmpty) {
+                      setState(() {
+                        _codingTasks!.add({'title': val.trim(), 'isCompleted': false});
+                        _codingTaskController.clear();
+                      });
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                style: IconButton.styleFrom(
+                  backgroundColor: accentColor.withValues(alpha: 0.2),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                icon: Icon(Icons.add, color: accentColor, size: 20),
+                onPressed: () {
+                  final val = _codingTaskController.text;
+                  if (val.trim().isNotEmpty) {
+                    setState(() {
+                      _codingTasks!.add({'title': val.trim(), 'isCompleted': false});
+                      _codingTaskController.clear();
+                    });
+                  }
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // Code Scratchpad
+          Text(
+            'Kod Karalama Defteri (TODOs, Fikirler):',
+            style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _codingNoteController,
+            maxLines: 2,
+            style: GoogleFonts.inter(color: Colors.white, fontSize: 12),
+            decoration: InputDecoration(
+              hintText: 'Değişken adları, regex yapıları veya todo hatırlatıcılarını yaz...',
+              hintStyle: GoogleFonts.inter(color: AppColors.textSecondary.withValues(alpha: 0.4), fontSize: 12),
+              filled: true,
+              fillColor: AppColors.background,
+              contentPadding: const EdgeInsets.all(10),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: accentColor.withValues(alpha: 0.2)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: accentColor),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final userAsync = ref.watch(currentUserProvider);
@@ -1062,6 +1692,8 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
                   ),
                 ],
               ),
+              const SizedBox(height: 24),
+              _buildCategoryAssistantCard(),
               const SizedBox(height: 24),
 
               // Custom Durations Row Selection Chips

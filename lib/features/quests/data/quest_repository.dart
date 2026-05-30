@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../user/data/user_repository.dart';
 import 'quest_model.dart';
@@ -68,6 +69,24 @@ class QuestRepository {
     await _userRepository.addXp(uid, quest.xpReward);
     await _userRepository.boostStat(uid, quest.statBoost, 1);
     await _userRepository.incrementCounter(uid, 'totalQuestsCompleted', 1);
+
+    // Sandık ödülü ver
+    String chestRarity = 'common';
+    if (quest.xpReward >= 200) {
+      chestRarity = 'legendary';
+    } else if (quest.xpReward >= 100) {
+      chestRarity = 'epic';
+    } else if (quest.xpReward >= 75) {
+      chestRarity = 'rare';
+    } else if (quest.xpReward >= 50) {
+      chestRarity = 'uncommon';
+    }
+    await _userRepository.addChest(uid, chestRarity);
+
+    // %20 ihtimalle ek olarak Rastgele Sandık ver
+    if (Random().nextDouble() < 0.20) {
+      await _userRepository.addChest(uid, 'random');
+    }
   }
 
   /// Görev sil
@@ -343,16 +362,29 @@ class QuestRepository {
         batch.set(_questsCol(uid).doc(), quest.toMap());
       }
     } else {
-      // Her seçilen odak alanı için günlük ve haftalık görevleri oluştur
-      for (final area in focusAreas) {
+      // Dengeleme/Düzenleme Mantığı:
+      // Kullanıcı 3 veya daha fazla odak alanı seçtiyse, her odak alanından sadece birincil (ilk) günlük görevi oluşturuyoruz.
+      // Ayrıca haftalık görevleri de seçilen ilk 2 odak alanı ile sınırlandırıyoruz.
+      final bool limitDaily = focusAreas.length > 2;
+      for (int i = 0; i < focusAreas.length; i++) {
+        final area = focusAreas[i];
         final dailyQuests = _getDailyQuestsForArea(area, now);
-        for (final q in dailyQuests) {
-          batch.set(_questsCol(uid).doc(), q.toMap());
+        if (limitDaily) {
+          if (dailyQuests.isNotEmpty) {
+            batch.set(_questsCol(uid).doc(), dailyQuests.first.toMap());
+          }
+        } else {
+          for (final q in dailyQuests) {
+            batch.set(_questsCol(uid).doc(), q.toMap());
+          }
         }
 
-        final weeklyQuests = _getWeeklyQuestsForArea(area, now);
-        for (final q in weeklyQuests) {
-          batch.set(_questsCol(uid).doc(), q.toMap());
+        // Haftalık görevleri en fazla ilk 2 odak alanı için oluştur
+        if (i < 2) {
+          final weeklyQuests = _getWeeklyQuestsForArea(area, now);
+          for (final q in weeklyQuests) {
+            batch.set(_questsCol(uid).doc(), q.toMap());
+          }
         }
       }
     }
@@ -393,8 +425,16 @@ class QuestRepository {
         ..._getDailyQuestsForArea('reading', now),
       ]);
     } else {
+      final bool limitDaily = focusAreas.length > 2;
       for (final area in focusAreas) {
-        defaults.addAll(_getDailyQuestsForArea(area, now));
+        final dailyQuests = _getDailyQuestsForArea(area, now);
+        if (limitDaily) {
+          if (dailyQuests.isNotEmpty) {
+            defaults.add(dailyQuests.first);
+          }
+        } else {
+          defaults.addAll(dailyQuests);
+        }
       }
     }
 

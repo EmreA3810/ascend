@@ -15,6 +15,10 @@ class UserModel {
   final int totalPomodoroSessions;
   final int totalMinutesFocused;
   final List<String> focusAreas;
+  final List<String> unlockedItems;
+  final Map<String, String> equippedItems;
+  final Map<String, int> chestsEarned;
+  final int gold;
 
   const UserModel({
     required this.uid,
@@ -31,10 +35,17 @@ class UserModel {
     this.totalPomodoroSessions = 0,
     this.totalMinutesFocused = 0,
     this.focusAreas = const [],
+    this.unlockedItems = const [],
+    this.equippedItems = const {},
+    this.chestsEarned = const {},
+    this.gold = 0,
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
     final rawStats = (map['stats'] as Map<String, dynamic>?) ?? {};
+    final rawEquipped = (map['equippedItems'] as Map<String, dynamic>?) ?? {};
+    final rawChests = (map['chestsEarned'] as Map<String, dynamic>?) ?? {};
+
     return UserModel(
       uid: map['uid'] as String,
       displayName: map['displayName'] as String? ?? 'Savaşçı',
@@ -50,6 +61,10 @@ class UserModel {
       totalPomodoroSessions: (map['totalPomodoroSessions'] as num?)?.toInt() ?? 0,
       totalMinutesFocused: (map['totalMinutesFocused'] as num?)?.toInt() ?? 0,
       focusAreas: List<String>.from(map['focusAreas'] ?? const []),
+      unlockedItems: List<String>.from(map['unlockedItems'] ?? const []),
+      equippedItems: rawEquipped.map((k, v) => MapEntry(k, v as String)),
+      chestsEarned: rawChests.map((k, v) => MapEntry(k, (v as num).toInt())),
+      gold: (map['gold'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -68,6 +83,10 @@ class UserModel {
         'totalPomodoroSessions': totalPomodoroSessions,
         'totalMinutesFocused': totalMinutesFocused,
         'focusAreas': focusAreas,
+        'unlockedItems': unlockedItems,
+        'equippedItems': equippedItems,
+        'chestsEarned': chestsEarned,
+        'gold': gold,
       };
 
   UserModel copyWith({
@@ -82,6 +101,10 @@ class UserModel {
     int? totalPomodoroSessions,
     int? totalMinutesFocused,
     List<String>? focusAreas,
+    List<String>? unlockedItems,
+    Map<String, String>? equippedItems,
+    Map<String, int>? chestsEarned,
+    int? gold,
   }) {
     return UserModel(
       uid: uid,
@@ -98,6 +121,10 @@ class UserModel {
       totalPomodoroSessions: totalPomodoroSessions ?? this.totalPomodoroSessions,
       totalMinutesFocused: totalMinutesFocused ?? this.totalMinutesFocused,
       focusAreas: focusAreas ?? this.focusAreas,
+      unlockedItems: unlockedItems ?? this.unlockedItems,
+      equippedItems: equippedItems ?? this.equippedItems,
+      chestsEarned: chestsEarned ?? this.chestsEarned,
+      gold: gold ?? this.gold,
     );
   }
 }

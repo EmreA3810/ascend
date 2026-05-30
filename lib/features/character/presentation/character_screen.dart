@@ -12,6 +12,8 @@ import '../../achievements/data/achievement_model.dart';
 import '../../quests/providers/quest_provider.dart';
 import '../../quests/data/quest_model.dart';
 import '../../pomodoro/providers/pomodoro_provider.dart';
+import 'character_painter.dart';
+import 'wardrobe_screen.dart';
 
 class CharacterScreen extends ConsumerWidget {
   const CharacterScreen({super.key});
@@ -109,18 +111,46 @@ class CharacterScreen extends ConsumerWidget {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
-          // Avatar with glow
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: const LinearGradient(colors: [AppColors.primary, AppColors.secondary]),
-              boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.6), blurRadius: 20, spreadRadius: 3)],
+          // Live Character Avatar with tap to open wardrobe
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const WardrobeScreen()),
+              );
+            },
+            child: Container(
+              width: 90,
+              height: 90,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.cardBackground,
+                border: Border.all(color: AppColors.secondary.withValues(alpha: 0.3), width: 1.5),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.secondary.withValues(alpha: 0.25),
+                    blurRadius: 15,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
+              child: CharacterAvatar(
+                equippedItems: user.equippedItems,
+                size: 80,
+              ),
             ),
-            child: const Icon(Icons.person, color: Colors.white, size: 40),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          Text(
+            '👕 Giydir / Gardırop',
+            style: GoogleFonts.inter(
+              color: AppColors.secondary,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 12),
           Text(
             user.displayName,
             style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),

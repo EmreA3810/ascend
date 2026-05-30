@@ -47,6 +47,9 @@ class UserRepository {
       'xpToNextLevel': newXpToNext,
       'title': newTitle,
     });
+
+    // XP kazanıldığında otomatik altın ver (1 XP = 1 Altın)
+    await addGold(uid, xpAmount);
   }
 
   Future<void> updateStreak(String uid) async {
@@ -96,6 +99,58 @@ class UserRepository {
   Future<void> updateFocusAreas(String uid, List<String> focusAreas) async {
     await updateUser(uid, {
       'focusAreas': focusAreas,
+    });
+  }
+
+  /// Altın ekle (1 XP = 1 Altın veya sandık satışından)
+  Future<void> addGold(String uid, int amount) async {
+    await _userDoc(uid).update({
+      'gold': FieldValue.increment(amount),
+    });
+  }
+
+  /// Altın Harca (Karakter Giysi satın alma vb.)
+  Future<void> spendGold(String uid, int amount) async {
+    await _userDoc(uid).update({
+      'gold': FieldValue.increment(-amount),
+    });
+  }
+
+  /// Envantere sandık ekle
+  Future<void> addChest(String uid, String rarity) async {
+    await _userDoc(uid).update({
+      'chestsEarned.$rarity': FieldValue.increment(1),
+    });
+  }
+
+  /// Sandık satarak Altın kazan
+  Future<void> sellChest(String uid, String rarity, int goldValue) async {
+    await _userDoc(uid).update({
+      'chestsEarned.$rarity': FieldValue.increment(-1),
+      'gold': FieldValue.increment(goldValue),
+    });
+  }
+
+  /// Sandık aç ve ekipman kilidi kaldır
+  Future<void> openChest(String uid, String rarity, String itemId) async {
+    await _userDoc(uid).update({
+      'chestsEarned.$rarity': FieldValue.increment(-1),
+      'unlockedItems': FieldValue.arrayUnion([itemId]),
+    });
+  }
+
+  /// Doğrudan Altın harcayarak giysi kilidi aç
+  Future<void> unlockItemDirectly(String uid, String itemId, int goldCost) async {
+    await spendGold(uid, goldCost);
+    await _userDoc(uid).update({
+      'unlockedItems': FieldValue.arrayUnion([itemId]),
+    });
+  }
+
+  /// Ekipman kuşan/değiştir (slot: hat, torso, pants)
+  Future<void> equipItem(String uid, String slot, String itemId) async {
+    await _userDoc(uid).update({
+      'equippedItems.$slot': itemId,
     });
   }
 
