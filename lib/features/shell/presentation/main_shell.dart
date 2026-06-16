@@ -61,8 +61,84 @@ class _MainShellState extends ConsumerState<MainShell> {
     );
 
     return Scaffold(
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: Stack(
+        children: [
+          Positioned.fill(child: _buildAtmosphere()),
+          ..._screens.asMap().entries.map((entry) {
+            return Positioned.fill(
+              child: _buildScreenLayer(entry.key, entry.value),
+            );
+          }),
+        ],
+      ),
       bottomNavigationBar: _buildBottomNav(uncompletedCount),
+    );
+  }
+
+  Widget _buildAtmosphere() {
+    return IgnorePointer(
+      child: Stack(
+        children: [
+          Positioned(
+            top: -80,
+            right: -60,
+            child: Container(
+              width: 220,
+              height: 220,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    AppColors.secondary.withValues(alpha: 0.12),
+                    AppColors.secondary.withValues(alpha: 0.0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 120,
+            left: -90,
+            child: Container(
+              width: 260,
+              height: 260,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    AppColors.primary.withValues(alpha: 0.10),
+                    AppColors.primary.withValues(alpha: 0.0),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildScreenLayer(int index, Widget screen) {
+    final isSelected = _currentIndex == index;
+
+    return IgnorePointer(
+      ignoring: !isSelected,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+        opacity: isSelected ? 1.0 : 0.0,
+        child: AnimatedSlide(
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+          offset: isSelected ? Offset.zero : const Offset(0.15, 0.0),
+          child: AnimatedScale(
+            duration: const Duration(milliseconds: 320),
+            curve: Curves.easeOutBack,
+            scale: isSelected ? 1.0 : 0.92,
+            child: screen,
+          ),
+        ),
+      ),
     );
   }
 

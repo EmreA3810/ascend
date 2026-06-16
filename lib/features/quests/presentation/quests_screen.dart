@@ -120,10 +120,8 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
 
   Widget _buildCustomTab(String uid, AsyncValue<List<QuestModel>> customQuestsAsync) {
     return customQuestsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-      error: (err, stack) => Center(
-        child: Text('Görevler yüklenirken hata oluştu', style: GoogleFonts.inter(color: Colors.white)),
-      ),
+      loading: () => _buildEmptyState('Özel görevler yükleniyor...'),
+      error: (err, stack) => _buildEmptyState('Görevler yüklenemedi.'),
       data: (quests) {
         return RefreshIndicator(
           onRefresh: _onRefresh,
@@ -148,21 +146,8 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
 
   Widget _buildDailyTab(String uid, AsyncValue<List<QuestModel>> dailyQuestsAsync) {
     return dailyQuestsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-      error: (err, stack) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.error_outline, color: AppColors.error, size: 48),
-            const SizedBox(height: 12),
-            Text('Görevler yüklenirken hata oluştu', style: GoogleFonts.inter(color: Colors.white)),
-            TextButton(
-              onPressed: _onRefresh,
-              child: const Text('Tekrar Dene', style: TextStyle(color: AppColors.primary)),
-            )
-          ],
-        ),
-      ),
+      loading: () => _buildEmptyState('Bugünün görevleri yükleniyor...'),
+      error: (err, stack) => _buildEmptyState('Görevler yüklenemedi.'),
       data: (quests) {
         final completed = quests.where((q) => q.isCompleted).length;
         final total = quests.length;
@@ -471,7 +456,7 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
               constraints: const BoxConstraints(),
             ),
             const SizedBox(width: 12),
-            // Checkbox
+            // Animated Circular Toggle
             GestureDetector(
               onTap: (quest.targetValue > 1 || const ['dk', 'set', 'sayfa', 'problem', 'bardak', 'seans'].contains(quest.unit))
                   ? () {
@@ -495,15 +480,90 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
                         );
                       }
                     },
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                child: isDone
-                    ? const Icon(Icons.check_circle, color: AppColors.success, size: 30, key: ValueKey(true))
-                    : const Icon(Icons.radio_button_unchecked, color: AppColors.textSecondary, size: 30, key: ValueKey(false)),
-              ),
+              child: _buildAnimatedCircularToggle(isDone),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAnimatedCircularToggle(bool isCompleted) {
+    return SizedBox(
+      width: 52,
+      height: 52,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Background circle
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 320),
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: isCompleted
+                  ? LinearGradient(
+                      colors: [
+                        AppColors.success,
+                        AppColors.success.withValues(alpha: 0.75),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    )
+                  : null,
+              color: !isCompleted ? AppColors.background.withValues(alpha: 0.8) : null,
+              border: Border.all(
+                color: isCompleted ? AppColors.success.withValues(alpha: 0.6) : AppColors.primary.withValues(alpha: 0.25),
+                width: 2,
+              ),
+              boxShadow: [
+                if (isCompleted)
+                  BoxShadow(
+                    color: AppColors.success.withValues(alpha: 0.4),
+                    blurRadius: 16,
+                    spreadRadius: 2,
+                  )
+              ],
+            ),
+            child: AnimatedScale(
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.elasticOut,
+              scale: isCompleted ? 1.0 : 0.0,
+              child: isCompleted
+                  ? const Icon(
+                      Icons.check_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    )
+                  : null,
+            ),
+          ),
+          // Pulse glow ring
+          if (!isCompleted)
+            Positioned.fill(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0.0, end: 1.0),
+                duration: const Duration(seconds: 2),
+                curve: Curves.easeInOut,
+                onEnd: () {},
+                builder: (context, value, child) {
+                  return Transform.scale(
+                    scale: 1.0 + (value * 0.15),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: (1 - value) * 0.3),
+                          width: 2,
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
       ),
     );
   }

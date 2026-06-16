@@ -67,14 +67,14 @@ class _XpGainPopupWidgetState extends State<_XpGainPopupWidget>
   void initState() {
     super.initState();
 
-    // ~1.5 saniyelik toplam animasyon
+    // ~2 saniyelik toplam animasyon (daha uzun ve dramatic)
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 2000),
     );
 
-    // Yukarı doğru hareket: 0 → -100 piksel
-    _translateY = Tween<double>(begin: 0, end: -100).animate(
+    // Yukarı doğru hareket: 0 → -140 piksel
+    _translateY = Tween<double>(begin: 0, end: -140).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
     );
 
@@ -136,6 +136,9 @@ class _XpGainPopupWidgetState extends State<_XpGainPopupWidget>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
+        // Scale animation: burst out then settle
+        final scaleValue = _controller.value > 0.1 ? 1.0 : (1.0 + (_controller.value * 10 * 0.2));
+        
         return Positioned(
           // Ekranın alt-ortasına yerleştir
           bottom: screenSize.height * 0.35,
@@ -143,53 +146,64 @@ class _XpGainPopupWidgetState extends State<_XpGainPopupWidget>
           right: 0,
           child: Transform.translate(
             offset: Offset(0, _translateY.value),
-            child: Opacity(
-              opacity: _opacity.value,
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // "+{xp} XP" — yeşil neon metin
-                    Text(
-                      '+${widget.xp} XP',
-                      style: GoogleFonts.inter(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.success,
-                        shadows: [
-                          Shadow(
-                            color: AppColors.success.withValues(alpha: 0.8),
-                            blurRadius: 16,
-                          ),
-                          Shadow(
-                            color: AppColors.success.withValues(alpha: 0.4),
-                            blurRadius: 32,
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // Opsiyonel stat bilgisi satırı
-                    if (widget.statName != null && widget.statAmount != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
+            child: Transform.scale(
+              scale: scaleValue,
+              child: Opacity(
+                opacity: _opacity.value,
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // "+{xp} XP" — yeşil neon metin, daha büyük
+                      ShaderMask(
+                        shaderCallback: (bounds) => LinearGradient(
+                          colors: [
+                            AppColors.success,
+                            Color.lerp(AppColors.success, Colors.white, 0.3)!,
+                          ],
+                        ).createShader(bounds),
                         child: Text(
-                          '+${widget.statAmount} ${widget.statName}',
+                          '+${widget.xp} XP',
                           style: GoogleFonts.inter(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: _getStatColor(widget.statName!),
+                            fontSize: 48,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 1.5,
                             shadows: [
                               Shadow(
-                                color: _getStatColor(widget.statName!)
-                                    .withValues(alpha: 0.6),
-                                blurRadius: 12,
+                                color: AppColors.success.withValues(alpha: 1.0),
+                                blurRadius: 24,
+                              ),
+                              Shadow(
+                                color: AppColors.success.withValues(alpha: 0.6),
+                                blurRadius: 48,
                               ),
                             ],
                           ),
                         ),
                       ),
-                  ],
+
+                      // Opsiyonel stat bilgisi satırı
+                      if (widget.statName != null && widget.statAmount != null) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          '+${widget.statAmount} ${widget.statName}',
+                          style: GoogleFonts.inter(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: _getStatColor(widget.statName!),
+                            shadows: [
+                              Shadow(
+                                color: _getStatColor(widget.statName!)
+                                    .withValues(alpha: 0.8),
+                                blurRadius: 16,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
             ),

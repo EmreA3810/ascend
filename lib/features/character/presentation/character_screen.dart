@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/widgets/animated_stat_bar.dart';
 import '../../../core/widgets/glassmorphic_card.dart';
 import '../../user/providers/user_provider.dart';
 import '../../user/data/user_model.dart';
@@ -87,19 +86,40 @@ class CharacterScreen extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildCharacterHero(context, ref, user),
+                _revealSection(order: 0, child: _buildCharacterHero(context, ref, user)),
                 const SizedBox(height: 20),
-                _buildStatsSection(user),
+                _revealSection(order: 1, child: _buildStatsSection(user)),
                 const SizedBox(height: 20),
-                _buildAchievementsSection(unlockedAchievements),
+                _revealSection(order: 2, child: _buildAchievementsSection(unlockedAchievements)),
                 const SizedBox(height: 20),
-                _buildTimelineSection(activities),
+                _revealSection(order: 3, child: _buildTimelineSection(activities)),
                 const SizedBox(height: 30),
               ],
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _revealSection({required Widget child, required int order}) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 500 + (order * 140)),
+      curve: Curves.easeOutBack,
+      builder: (context, value, sectionChild) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 32 * (1 - value)),
+            child: Transform.scale(
+              scale: 0.82 + (0.18 * value),
+              child: sectionChild,
+            ),
+          ),
+        );
+      },
+      child: child,
     );
   }
 
@@ -111,6 +131,74 @@ class CharacterScreen extends ConsumerWidget {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
+          // RPG Level Badge
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.primary,
+                  AppColors.secondary,
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.primary.withValues(alpha: 0.5),
+                  blurRadius: 24,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'LV',
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  Text(
+                    '${user.level}',
+                    style: GoogleFonts.inter(
+                      fontSize: 36,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                      height: 1.0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          // Character Name
+          Text(
+            user.displayName,
+            style: GoogleFonts.inter(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          // Character Title/Status
+          Text(
+            'Legendary Ascender 🏆',
+            style: GoogleFonts.inter(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AppColors.secondary,
+              letterSpacing: 1.0,
+            ),
+          ),
+          const SizedBox(height: 20),
           // Live Character Avatar with tap to open wardrobe
           GestureDetector(
             onTap: () {
@@ -429,12 +517,12 @@ class CharacterScreen extends ConsumerWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.bar_chart_rounded, color: AppColors.primary, size: 20),
+            const Icon(Icons.auto_awesome, color: AppColors.secondary, size: 20),
             const SizedBox(width: 8),
-            Text('Özellikler', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            Text('Core Attributes', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -442,36 +530,66 @@ class CharacterScreen extends ConsumerWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
           ),
-          child: Column(
+          child: GridView.count(
+            crossAxisCount: 5,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            childAspectRatio: 1.1,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 8,
             children: [
-              AnimatedStatBar(
-                label: 'Odak (Focus)',
-                value: user.stats['focus'] ?? 0,
-                maxValue: 100,
-                color: AppColors.statFocus,
-              ),
-              const SizedBox(height: 14),
-              AnimatedStatBar(
-                label: 'Enerji (Energy)',
-                value: user.stats['energy'] ?? 0,
-                maxValue: 100,
-                color: AppColors.statEnergy,
-              ),
-              const SizedBox(height: 14),
-              AnimatedStatBar(
-                label: 'Bilgi (Knowledge)',
-                value: user.stats['knowledge'] ?? 0,
-                maxValue: 100,
-                color: AppColors.statKnowledge,
-              ),
-              const SizedBox(height: 14),
-              AnimatedStatBar(
-                label: 'Güç (Strength)',
-                value: user.stats['strength'] ?? 0,
-                maxValue: 100,
-                color: AppColors.statStrength,
+                _buildRPGStatCard('STR', user.stats['strength'] ?? 0, Color(0xFFFF6B6B)),
+                _buildRPGStatCard('INT', user.stats['intelligence'] ?? 0, Color(0xFF4ECDC4)),
+                _buildRPGStatCard('END', user.stats['endurance'] ?? 0, Color(0xFFFFD93D)),
+                _buildRPGStatCard('FOC', user.stats['focus'] ?? 0, Color(0xFF6BCB77)),
+                _buildRPGStatCard('KNW', user.stats['knowledge'] ?? 0, Color(0xFF9D84B7)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRPGStatCard(String name, int value, Color color) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [color, color.withValues(alpha: 0.6)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.3),
+                blurRadius: 8,
               ),
             ],
+          ),
+          child: Center(
+            child: Text(
+              '$value',
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          name,
+          style: GoogleFonts.inter(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: color,
+            letterSpacing: 0.5,
           ),
         ),
       ],

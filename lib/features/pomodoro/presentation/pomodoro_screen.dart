@@ -1595,20 +1595,25 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
                 animation: _pulseController,
                 builder: (context, child) {
                   final glow = _isRunning ? (_pulseController.value * 0.25 + 0.1) : 0.05;
-                  return Container(
-                    width: 210,
-                    height: 210,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: accentColor.withValues(alpha: glow),
-                          blurRadius: 30,
-                          spreadRadius: 4,
-                        ),
-                      ],
+                  final scale = _isRunning ? (1.0 + (_pulseController.value * 0.015)) : 1.0;
+                  return Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      width: 210,
+                      height: 210,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: accentColor.withValues(alpha: 0.18), width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accentColor.withValues(alpha: glow),
+                            blurRadius: 36,
+                            spreadRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: child,
                     ),
-                    child: child,
                   );
                 },
                 child: Stack(
@@ -2082,24 +2087,32 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
                         const SizedBox(width: 24),
                         GestureDetector(
                           onTap: _startPause,
-                          child: Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: LinearGradient(
-                                colors: [accentColor, accentColor.withValues(alpha: 0.7)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
+                          child: AnimatedScale(
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeOutBack,
+                            scale: _isRunning ? 1.04 : 1.0,
+                            child: Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: [
+                                    accentColor,
+                                    accentColor.withValues(alpha: _isRunning ? 0.82 : 0.68),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(color: accentColor.withValues(alpha: _isRunning ? 0.46 : 0.26), blurRadius: 22, spreadRadius: 2),
+                                ],
                               ),
-                              boxShadow: [
-                                BoxShadow(color: accentColor.withValues(alpha: 0.4), blurRadius: 20, spreadRadius: 2),
-                              ],
-                            ),
-                            child: Icon(
-                              _isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                              color: Colors.white,
-                              size: 40,
+                              child: Icon(
+                                _isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                                color: Colors.white,
+                                size: 40,
+                              ),
                             ),
                           ),
                         ),

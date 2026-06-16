@@ -24,7 +24,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     with TickerProviderStateMixin {
   late AnimationController _xpAnimController;
   late Animation<double> _xpAnimation;
+  late AnimationController _introController;
+  late Animation<double> _introFade;
+  late Animation<Offset> _heroSlide;
+  late Animation<double> _statsScale;
+  late Animation<Offset> _questsSlide;
   double _previousXpRatio = 0;
+  bool _introStarted = false;
 
   @override
   void initState() {
@@ -35,6 +41,39 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
     _xpAnimation = Tween<double>(begin: 0, end: 0).animate(
       CurvedAnimation(parent: _xpAnimController, curve: Curves.easeOutCubic),
+    );
+
+    _introController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+    );
+    _introFade = CurvedAnimation(
+      parent: _introController,
+      curve: Curves.easeOut,
+    );
+    _heroSlide = Tween<Offset>(
+      begin: const Offset(0, 0.08),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.0, 0.45, curve: Curves.easeOutCubic),
+      ),
+    );
+    _statsScale = Tween<double>(begin: 0.96, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.15, 0.65, curve: Curves.easeOutBack),
+      ),
+    );
+    _questsSlide = Tween<Offset>(
+      begin: const Offset(0, 0.07),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _introController,
+        curve: const Interval(0.25, 0.8, curve: Curves.easeOutCubic),
+      ),
     );
   }
 
@@ -48,9 +87,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     _previousXpRatio = target;
   }
 
+  void _startIntroIfNeeded() {
+    if (_introStarted) return;
+    _introStarted = true;
+    _introController.forward();
+  }
+
   @override
   void dispose() {
     _xpAnimController.dispose();
+    _introController.dispose();
     super.dispose();
   }
 
@@ -90,6 +136,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         if (_previousXpRatio != xpRatio) {
           WidgetsBinding.instance.addPostFrameCallback((_) => _animateXp(xpRatio));
         }
+
+        WidgetsBinding.instance.addPostFrameCallback((_) => _startIntroIfNeeded());
 
         return _buildBody(context, user);
       },
@@ -142,23 +190,51 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             padding: const EdgeInsets.all(16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                _buildHeroCard(user),
+                SlideTransition(
+                  position: _heroSlide,
+                  child: FadeTransition(
+                    opacity: _introFade,
+                    child: AnimatedBuilder(
+                      animation: _xpAnimController,
+                      child: _buildHeroCard(user),
+                      builder: (context, child) {
+                        final pulse = 1.0 + (_xpAnimController.value * (1 - _xpAnimController.value)) * 0.08;
+                        return Transform.scale(scale: pulse, child: child);
+                      },
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 20),
                 
                 // Character Stats Panel (Using GlassmorphicCard and AnimatedStatBars)
-                _buildStatsPanel(user),
+                ScaleTransition(
+                  scale: _statsScale,
+                  child: FadeTransition(
+                    opacity: _introFade,
+                    child: _buildStatsPanel(user),
+                  ),
+                ),
                 const SizedBox(height: 20),
                 
                 // Daily Quests Panel
                 _buildSectionTitle('Günlük Görevler', Icons.local_fire_department),
                 const SizedBox(height: 12),
-                _buildDailyQuestsPanel(user.uid, dailyQuestsAsync),
+                SlideTransition(
+                  position: _questsSlide,
+                  child: FadeTransition(
+                    opacity: _introFade,
+                    child: _buildDailyQuestsPanel(user.uid, dailyQuestsAsync),
+                  ),
+                ),
                 const SizedBox(height: 20),
                 
                 // Activities Panel
                 _buildSectionTitle('Son Aktiviteler', Icons.history),
                 const SizedBox(height: 12),
-                _buildActivityFeed(activities),
+                FadeTransition(
+                  opacity: _introFade,
+                  child: _buildActivityFeed(activities),
+                ),
                 const SizedBox(height: 20),
               ]),
             ),
@@ -372,40 +448,44 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         child: Text('Görevler yüklenirken hata oluştu', style: GoogleFonts.inter(color: AppColors.error)),
       ),
       data: (quests) {
-        if (quests.isEmpty) {
+        final activeQuests = quests.where((q) => !q.isCompleted).toList();
+
+        if (activeQuests.isEmpty) {
+          final allCompleted = quests.isNotEmpty;
           return GlassmorphicCard(
-            borderColor: AppColors.primary,
+            borderColor: allCompleted ? AppColors.success : AppColors.primary,
             child: Column(
               children: [
                 Text(
-                  'Bugün için görev bulunmuyor!',
+                  allCompleted ? 'Bugünün tüm görevlerini tamamladın! 🏆' : 'Bugün için görev bulunmuyor!',
                   style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13),
                 ),
-                const SizedBox(height: 12),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                if (!allCompleted) ...[
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () {
+                      ref.read(questRepositoryProvider).ensureDailyQuests(uid);
+                    },
+                    child: Text('Günlük Görevleri Oluştur', style: GoogleFonts.inter(color: Colors.white)),
                   ),
-                  onPressed: () {
-                    ref.read(questRepositoryProvider).ensureDailyQuests(uid);
-                  },
-                  child: Text('Günlük Görevleri Oluştur', style: GoogleFonts.inter(color: Colors.white)),
-                ),
+                ],
               ],
             ),
           );
         }
 
         return Column(
-          children: quests.map((q) => _buildQuestCard(uid, q)).toList(),
+          children: activeQuests.map((q) => _buildQuestCard(uid, q)).toList(),
         );
       },
     );
   }
 
   Widget _buildQuestCard(String uid, QuestModel quest) {
-    final isDone = quest.isCompleted;
     final iconData = QuestModel.iconFromName(quest.iconName);
 
     return Container(
@@ -415,7 +495,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isDone ? AppColors.success.withValues(alpha: 0.4) : AppColors.primary.withValues(alpha: 0.15),
+          color: AppColors.primary.withValues(alpha: 0.15),
         ),
       ),
       child: Row(
@@ -423,10 +503,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: (isDone ? AppColors.success : AppColors.primary).withValues(alpha: 0.12),
+              color: AppColors.primary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(iconData, color: isDone ? AppColors.success : AppColors.primary, size: 20),
+            child: Icon(iconData, color: AppColors.primary, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -436,44 +516,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 Text(
                   quest.title,
                   style: GoogleFonts.inter(
-                    color: isDone ? AppColors.textSecondary : Colors.white,
+                    color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    decoration: isDone ? TextDecoration.lineThrough : null,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text('+${quest.xpReward} XP', style: GoogleFonts.inter(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.bold)),
               ],
-            ),
-          ),
-          GestureDetector(
-            onTap: (quest.targetValue > 1 || const ['dk', 'set', 'sayfa', 'problem', 'bardak', 'seans'].contains(quest.unit))
-                ? () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Bu görev sayısal ilerlemelidir. Pomodoro veya antrenman tamamlayarak ilerletilebilir! ⚡'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                  }
-                : () async {
-                    final nextCompleted = !quest.isCompleted;
-                    await ref.read(questRepositoryProvider).toggleQuest(uid, quest.id, nextCompleted);
-                    
-                    if (nextCompleted && mounted) {
-                      XpGainPopup.show(
-                        context,
-                        xp: quest.xpReward,
-                        statName: quest.statBoost,
-                        statAmount: 1,
-                      );
-                    }
-                  },
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: isDone
-                  ? const Icon(Icons.check_circle, color: AppColors.success, size: 26, key: ValueKey(true))
-                  : const Icon(Icons.radio_button_unchecked, color: AppColors.textSecondary, size: 26, key: ValueKey(false)),
             ),
           ),
         ],
