@@ -11,6 +11,7 @@ import '../../achievements/data/achievement_model.dart';
 import '../../quests/providers/quest_provider.dart';
 import '../../quests/data/quest_model.dart';
 import '../../pomodoro/providers/pomodoro_provider.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'character_painter.dart';
 import 'wardrobe_screen.dart';
 
@@ -189,14 +190,21 @@ class CharacterScreen extends ConsumerWidget {
             ),
           ),
           // Character Title/Status
-          Text(
-            'Legendary Ascender 🏆',
-            style: GoogleFonts.inter(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AppColors.secondary,
-              letterSpacing: 1.0,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Legendary Ascender',
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.secondary,
+                  letterSpacing: 1.0,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.emoji_events_rounded, color: AppColors.gold, size: 14),
+            ],
           ),
           const SizedBox(height: 20),
           // Live Character Avatar with tap to open wardrobe
@@ -230,13 +238,20 @@ class CharacterScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 8),
-          Text(
-            '👕 Giydir / Gardırop',
-            style: GoogleFonts.inter(
-              color: AppColors.secondary,
-              fontSize: 11,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.checkroom_rounded, color: AppColors.secondary, size: 13),
+              const SizedBox(width: 4),
+              Text(
+                'Giydir / Gardırop',
+                style: GoogleFonts.inter(
+                  color: AppColors.secondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Text(
@@ -251,9 +266,16 @@ class CharacterScreen extends ConsumerWidget {
               borderRadius: BorderRadius.circular(20),
               border: Border.all(color: AppColors.secondary.withValues(alpha: 0.4)),
             ),
-            child: Text(
-              '⚔️ Level ${user.level} — ${user.title}',
-              style: GoogleFonts.inter(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.shield_rounded, color: AppColors.secondary, size: 12),
+                const SizedBox(width: 6),
+                Text(
+                  'Level ${user.level} — ${user.title}',
+                  style: GoogleFonts.inter(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 12),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
@@ -299,11 +321,21 @@ class CharacterScreen extends ConsumerWidget {
     
     String getLabel(String id) {
       switch (id) {
-        case 'academic': return '🎓 Ders';
-        case 'fitness': return '🏋️ Spor';
-        case 'reading': return '📚 Okuma';
-        case 'coding': return '💻 Kod';
+        case 'academic': return 'Ders';
+        case 'fitness': return 'Spor';
+        case 'reading': return 'Okuma';
+        case 'coding': return 'Kod';
         default: return id;
+      }
+    }
+
+    IconData getIcon(String id) {
+      switch (id) {
+        case 'academic': return Icons.school_rounded;
+        case 'fitness': return Icons.fitness_center_rounded;
+        case 'reading': return Icons.menu_book_rounded;
+        case 'coding': return Icons.code_rounded;
+        default: return Icons.star_rounded;
       }
     }
 
@@ -341,9 +373,16 @@ class CharacterScreen extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
                     ),
-                    child: Text(
-                      getLabel(id),
-                      style: GoogleFonts.inter(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(getIcon(id), color: color, size: 10),
+                        const SizedBox(width: 4),
+                        Text(
+                          getLabel(id),
+                          style: GoogleFonts.inter(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ],
                     ),
                   );
                 }),
@@ -365,10 +404,10 @@ class CharacterScreen extends ConsumerWidget {
     final List<String> currentSelected = List.from(user.focusAreas.where((a) => a != 'skipped'));
     
     final List<Map<String, dynamic>> options = [
-      {'id': 'academic', 'label': 'Ders Çalışma & Akademi', 'icon': '🎓', 'color': AppColors.statKnowledge},
-      {'id': 'fitness', 'label': 'Spor & Sağlıklı Yaşam', 'icon': '🏋️', 'color': AppColors.statStrength},
-      {'id': 'reading', 'label': 'Kişisel Gelişim & Okuma', 'icon': '📚', 'color': AppColors.primary},
-      {'id': 'coding', 'label': 'Yazılım & Kariyer / İş', 'icon': '💻', 'color': AppColors.statFocus},
+      {'id': 'academic', 'label': 'Ders Çalışma & Akademi', 'icon': Icons.school_rounded, 'color': AppColors.statKnowledge},
+      {'id': 'fitness', 'label': 'Spor & Sağlıklı Yaşam', 'icon': Icons.fitness_center_rounded, 'color': AppColors.statStrength},
+      {'id': 'reading', 'label': 'Kişisel Gelişim & Okuma', 'icon': Icons.menu_book_rounded, 'color': AppColors.primary},
+      {'id': 'coding', 'label': 'Yazılım & Kariyer / İş', 'icon': Icons.code_rounded, 'color': AppColors.statFocus},
     ];
 
     showModalBottomSheet(
@@ -442,7 +481,7 @@ class CharacterScreen extends ConsumerWidget {
                           ),
                           child: Row(
                             children: [
-                              Text(opt['icon'] as String, style: const TextStyle(fontSize: 20)),
+                              Icon(opt['icon'] as IconData, color: color, size: 20),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
@@ -512,6 +551,12 @@ class CharacterScreen extends ConsumerWidget {
   }
 
   Widget _buildStatsSection(UserModel user) {
+    final str = (user.stats['strength'] ?? 0).toDouble();
+    final intelligence = (user.stats['intelligence'] ?? 0).toDouble();
+    final endurance = (user.stats['endurance'] ?? 0).toDouble();
+    final focus = (user.stats['focus'] ?? 0).toDouble();
+    final knowledge = (user.stats['knowledge'] ?? 0).toDouble();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -530,19 +575,63 @@ class CharacterScreen extends ConsumerWidget {
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
           ),
-          child: GridView.count(
-            crossAxisCount: 5,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 1.1,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 8,
+          child: Column(
             children: [
-                _buildRPGStatCard('STR', user.stats['strength'] ?? 0, Color(0xFFFF6B6B)),
-                _buildRPGStatCard('INT', user.stats['intelligence'] ?? 0, Color(0xFF4ECDC4)),
-                _buildRPGStatCard('END', user.stats['endurance'] ?? 0, Color(0xFFFFD93D)),
-                _buildRPGStatCard('FOC', user.stats['focus'] ?? 0, Color(0xFF6BCB77)),
-                _buildRPGStatCard('KNW', user.stats['knowledge'] ?? 0, Color(0xFF9D84B7)),
+              // Radar Chart (Pentagon)
+              SizedBox(
+                height: 180,
+                child: RadarChart(
+                  RadarChartData(
+                    dataSets: [
+                      RadarDataSet(
+                        fillColor: AppColors.secondary.withValues(alpha: 0.2),
+                        borderColor: AppColors.secondary,
+                        entryRadius: 3,
+                        dataEntries: [
+                          RadarEntry(value: str),
+                          RadarEntry(value: intelligence),
+                          RadarEntry(value: endurance),
+                          RadarEntry(value: focus),
+                          RadarEntry(value: knowledge),
+                        ],
+                      ),
+                    ],
+                    radarShape: RadarShape.polygon,
+                    titlePositionPercentageOffset: 0.2,
+                    getTitle: (index, angle) {
+                      switch (index) {
+                        case 0: return const RadarChartTitle(text: 'STR');
+                        case 1: return const RadarChartTitle(text: 'INT');
+                        case 2: return const RadarChartTitle(text: 'END');
+                        case 3: return const RadarChartTitle(text: 'FOC');
+                        case 4: return const RadarChartTitle(text: 'KNW');
+                        default: return const RadarChartTitle(text: '');
+                      }
+                    },
+                    tickCount: 3,
+                    ticksTextStyle: const TextStyle(color: Colors.white24, fontSize: 8),
+                    gridBorderData: const BorderSide(color: Colors.white10),
+                    tickBorderData: const BorderSide(color: Colors.white10),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Grid details
+              GridView.count(
+                crossAxisCount: 5,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                childAspectRatio: 1.1,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 8,
+                children: [
+                  _buildRPGStatCard('STR', user.stats['strength'] ?? 0, const Color(0xFFFF6B6B)),
+                  _buildRPGStatCard('INT', user.stats['intelligence'] ?? 0, const Color(0xFF4ECDC4)),
+                  _buildRPGStatCard('END', user.stats['endurance'] ?? 0, const Color(0xFFFFD93D)),
+                  _buildRPGStatCard('FOC', user.stats['focus'] ?? 0, const Color(0xFF6BCB77)),
+                  _buildRPGStatCard('KNW', user.stats['knowledge'] ?? 0, const Color(0xFF9D84B7)),
+                ],
+              ),
             ],
           ),
         ),
@@ -618,7 +707,7 @@ class CharacterScreen extends ConsumerWidget {
                 ),
                 child: Center(
                   child: Text(
-                    'Henüz açılmış başarım bulunmuyor. 🔒',
+                    'Henüz açılmış başarım bulunmuyor.',
                     style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13),
                   ),
                 ),
@@ -653,7 +742,7 @@ class CharacterScreen extends ConsumerWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(a.icon, style: const TextStyle(fontSize: 22)),
+                            Icon(_getAchievementIcon(a.category), color: AppColors.gold, size: 22),
                             const Icon(Icons.lock_open_rounded, color: AppColors.gold, size: 16),
                           ],
                         ),
@@ -682,6 +771,17 @@ class CharacterScreen extends ConsumerWidget {
               ),
       ],
     );
+  }
+
+  IconData _getAchievementIcon(String category) {
+    switch (category) {
+      case 'streak': return Icons.local_fire_department_rounded;
+      case 'pomodoro': return Icons.timer_rounded;
+      case 'quest': return Icons.assignment_turned_in_rounded;
+      case 'level': return Icons.trending_up_rounded;
+      case 'stat': return Icons.insights_rounded;
+      default: return Icons.emoji_events_rounded;
+    }
   }
 
   Widget _buildTimelineSection(List<Map<String, dynamic>> activities) {

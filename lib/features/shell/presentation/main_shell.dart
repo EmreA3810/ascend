@@ -12,6 +12,8 @@ import '../../user/providers/user_provider.dart';
 import '../../../core/widgets/level_up_overlay.dart';
 import '../../user/data/user_model.dart';
 import '../../onboarding/presentation/focus_questionnaire_overlay.dart';
+import '../providers/shell_provider.dart';
+import '../../../core/widgets/particle_background.dart';
 
 class MainShell extends ConsumerStatefulWidget {
   const MainShell({super.key});
@@ -21,8 +23,6 @@ class MainShell extends ConsumerStatefulWidget {
 }
 
 class _MainShellState extends ConsumerState<MainShell> {
-  int _currentIndex = 0;
-
   final List<Widget> _screens = const [
     DashboardScreen(),
     QuestsScreen(),
@@ -35,6 +35,7 @@ class _MainShellState extends ConsumerState<MainShell> {
   Widget build(BuildContext context) {
     final userAsync = ref.watch(currentUserProvider);
     final user = userAsync.value;
+    final currentIndex = ref.watch(shellIndexProvider);
 
     // Listen to currentUserProvider
     ref.listen<AsyncValue<UserModel?>>(currentUserProvider, (previous, next) {
@@ -64,14 +65,15 @@ class _MainShellState extends ConsumerState<MainShell> {
       body: Stack(
         children: [
           Positioned.fill(child: _buildAtmosphere()),
+          const Positioned.fill(child: IgnorePointer(child: ParticleBackground())),
           ..._screens.asMap().entries.map((entry) {
             return Positioned.fill(
-              child: _buildScreenLayer(entry.key, entry.value),
+              child: _buildScreenLayer(entry.key, entry.value, currentIndex),
             );
           }),
         ],
       ),
-      bottomNavigationBar: _buildBottomNav(uncompletedCount),
+      bottomNavigationBar: _buildBottomNav(uncompletedCount, currentIndex),
     );
   }
 
@@ -118,8 +120,8 @@ class _MainShellState extends ConsumerState<MainShell> {
     );
   }
 
-  Widget _buildScreenLayer(int index, Widget screen) {
-    final isSelected = _currentIndex == index;
+  Widget _buildScreenLayer(int index, Widget screen, int currentIndex) {
+    final isSelected = currentIndex == index;
 
     return IgnorePointer(
       ignoring: !isSelected,
@@ -142,7 +144,7 @@ class _MainShellState extends ConsumerState<MainShell> {
     );
   }
 
-  Widget _buildBottomNav(int badgeCount) {
+  Widget _buildBottomNav(int badgeCount, int currentIndex) {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
@@ -167,11 +169,11 @@ class _MainShellState extends ConsumerState<MainShell> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildNavItem(0, Icons.dashboard_rounded, 'Ana Sayfa'),
-              _buildNavItem(1, Icons.assignment_rounded, 'Görevler', badgeCount: badgeCount),
-              _buildNavItem(2, Icons.timer_rounded, 'Pomodoro'),
-              _buildNavItem(3, Icons.bar_chart_rounded, 'İstatistik'),
-              _buildNavItem(4, Icons.person_rounded, 'Karakter'),
+              _buildNavItem(0, Icons.dashboard_rounded, 'Ana Sayfa', currentIndex),
+              _buildNavItem(1, Icons.assignment_rounded, 'Görevler', currentIndex, badgeCount: badgeCount),
+              _buildNavItem(2, Icons.timer_rounded, 'Pomodoro', currentIndex),
+              _buildNavItem(3, Icons.bar_chart_rounded, 'İstatistik', currentIndex),
+              _buildNavItem(4, Icons.person_rounded, 'Karakter', currentIndex),
             ],
           ),
         ),
@@ -179,8 +181,8 @@ class _MainShellState extends ConsumerState<MainShell> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData icon, String label, {int badgeCount = 0}) {
-    final isSelected = _currentIndex == index;
+  Widget _buildNavItem(int index, IconData icon, String label, int currentIndex, {int badgeCount = 0}) {
+    final isSelected = currentIndex == index;
     Widget iconWidget = Icon(
       icon,
       color: isSelected ? AppColors.primary : AppColors.textSecondary,
@@ -199,7 +201,7 @@ class _MainShellState extends ConsumerState<MainShell> {
     }
 
     return GestureDetector(
-      onTap: () => setState(() => _currentIndex = index),
+      onTap: () => ref.read(shellIndexProvider.notifier).setIndex(index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,

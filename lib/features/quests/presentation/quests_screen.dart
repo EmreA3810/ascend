@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/xp_gain_popup.dart';
+import '../../../core/widgets/ascend_toast.dart';
 import '../data/quest_model.dart';
 import '../providers/quest_provider.dart';
 import '../../user/providers/user_provider.dart';
@@ -30,6 +31,14 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
     super.dispose();
   }
 
+  String _getChestRarityName(int xp) {
+    if (xp >= 200) return 'Efsanevi Sandık 👑';
+    if (xp >= 100) return 'Epik Sandık 💜';
+    if (xp >= 75) return 'Nadir Sandık 💙';
+    if (xp >= 50) return 'Sıradışı Sandık 💚';
+    return 'Sıradan Sandık 🤎';
+  }
+
   Future<void> _incrementProgress(String uid, QuestModel quest) async {
     final willComplete = quest.currentValue + 1 >= quest.targetValue;
     await ref.read(questRepositoryProvider).incrementQuestProgress(uid, quest.id, 1);
@@ -39,6 +48,12 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
         xp: quest.xpReward,
         statName: quest.statBoost,
         statAmount: 1,
+      );
+      AscendToast.show(
+        context,
+        title: 'Ganimet Kazanıldı! 🎁',
+        message: 'Görevi tamamladın ve bir [${_getChestRarityName(quest.xpReward)}] kazandın!',
+        type: ToastType.success,
       );
     }
   }
@@ -477,6 +492,12 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
                           xp: quest.xpReward,
                           statName: quest.statBoost,
                           statAmount: 1,
+                        );
+                        AscendToast.show(
+                          context,
+                          title: 'Ganimet Kazanıldı! 🎁',
+                          message: 'Görevi tamamladın ve bir [${_getChestRarityName(quest.xpReward)}] kazandın!',
+                          type: ToastType.success,
                         );
                       }
                     },

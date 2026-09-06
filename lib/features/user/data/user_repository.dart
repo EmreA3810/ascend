@@ -50,6 +50,7 @@ class UserRepository {
 
     // XP kazanıldığında otomatik altın ver (1 XP = 1 Altın)
     await addGold(uid, xpAmount);
+    await updateStreak(uid);
   }
 
   Future<void> updateStreak(String uid) async {

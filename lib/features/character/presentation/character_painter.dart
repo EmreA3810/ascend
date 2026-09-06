@@ -110,6 +110,19 @@ class CharacterPainter extends CustomPainter {
     canvas.drawPath(leftLegPath, skinPaint);
     canvas.drawPath(rightLegPath, skinPaint);
 
+    // Ayakkabı / RPG Bot Çizimi
+    final bootPaint = Paint()
+      ..color = Colors.brown.shade800
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(RRect.fromRectAndRadius(
+      Rect.fromLTRB(center.dx - 14, center.dy + 45, center.dx - 2, center.dy + 51),
+      const Radius.circular(3),
+    ), bootPaint);
+    canvas.drawRRect(RRect.fromRectAndRadius(
+      Rect.fromLTRB(center.dx + 2, center.dy + 45, center.dx + 14, center.dy + 51),
+      const Radius.circular(3),
+    ), bootPaint);
+
     // Pantolon Çizimi (Kuşanıldıysa bacakları kaplar)
     final pantsPaint = Paint()
       ..color = pantsColor
@@ -192,6 +205,10 @@ class CharacterPainter extends CustomPainter {
       ));
     canvas.drawPath(leftArmPath, skinPaint);
     canvas.drawPath(rightArmPath, skinPaint);
+
+    // Eller (RPG Detayı)
+    canvas.drawCircle(Offset(center.dx - 18, torsoBottom - 1), 3.5, skinPaint);
+    canvas.drawCircle(Offset(center.dx + 18, torsoBottom - 1), 3.5, skinPaint);
 
     // Gövde (Ten)
     canvas.drawRRect(RRect.fromRectAndRadius(
@@ -345,19 +362,57 @@ class CharacterPainter extends CustomPainter {
     // Kafa
     canvas.drawCircle(Offset(center.dx, headY), 16, skinPaint);
 
-    // Gözler
-    canvas.drawCircle(Offset(center.dx - 5, headY - 1), 2, eyePaint);
-    canvas.drawCircle(Offset(center.dx + 5, headY - 1), 2, eyePaint);
+    // --- 4. ŞAPKA & SAÇ ---
+    final hatItem = LootPool.getItemById(equippedItems['hat'] ?? '');
+    final Color hatColor = hatItem?.color ?? Colors.transparent;
+    final String hatId = hatItem?.id ?? '';
+
+    if (hatId.isEmpty) {
+      // Kel görünmesini engellemek için havalı saçlar çiziyoruz
+      final hairPaint = Paint()..color = Colors.brown.shade900..style = PaintingStyle.fill;
+      // Kafa üstü saç kubbesi
+      canvas.drawArc(
+        Rect.fromLTRB(center.dx - 17, headY - 17, center.dx + 17, headY - 5),
+        pi, pi, true, hairPaint
+      );
+      // Kaküller / Alın saç telleri
+      final hairPath = Path()
+        ..moveTo(center.dx - 16, headY - 10)
+        ..lineTo(center.dx - 10, headY - 10)
+        ..lineTo(center.dx - 11, headY - 4) // tel 1
+        ..lineTo(center.dx - 4, headY - 11)
+        ..lineTo(center.dx - 1, headY - 3)  // tel 2 (orta)
+        ..lineTo(center.dx + 4, headY - 11)
+        ..lineTo(center.dx + 11, headY - 4) // tel 3
+        ..lineTo(center.dx + 10, headY - 10)
+        ..lineTo(center.dx + 16, headY - 10)
+        ..close();
+      canvas.drawPath(hairPath, hairPaint);
+    }
+
+    // Gözler (RPG Chibi tarzı göz parıltısı ekliyoruz)
+    canvas.drawCircle(Offset(center.dx - 5, headY - 1), 3.2, eyePaint);
+    canvas.drawCircle(Offset(center.dx + 5, headY - 1), 3.2, eyePaint);
+    
+    final eyeReflectionPaint = Paint()..color = Colors.white..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(center.dx - 6.2, headY - 2.2), 0.9, eyeReflectionPaint);
+    canvas.drawCircle(Offset(center.dx + 3.8, headY - 2.2), 0.9, eyeReflectionPaint);
+
+    // Sevimli Gülümseyen Ağız (Mouth)
+    final mouthPaint = Paint()
+      ..color = Colors.red.shade400
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(
+      Rect.fromLTRB(center.dx - 3, headY + 3, center.dx + 3, headY + 7),
+      0, pi, false, mouthPaint
+    );
 
     // Yanaklar / Kızarıklıklar
     final blushPaint = Paint()..color = Colors.pinkAccent.withValues(alpha: 0.35)..style = PaintingStyle.fill;
     canvas.drawCircle(Offset(center.dx - 9, headY + 3), 2.5, blushPaint);
     canvas.drawCircle(Offset(center.dx + 9, headY + 3), 2.5, blushPaint);
-
-    // --- 4. ŞAPKA ---
-    final hatItem = LootPool.getItemById(equippedItems['hat'] ?? '');
-    final Color hatColor = hatItem?.color ?? Colors.transparent;
-    final String hatId = hatItem?.id ?? '';
 
     if (hatId.isNotEmpty) {
       final hatPaint = Paint()..color = hatColor..style = PaintingStyle.fill;

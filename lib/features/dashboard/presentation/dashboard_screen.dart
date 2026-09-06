@@ -5,13 +5,17 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/glassmorphic_card.dart';
 import '../../../core/widgets/animated_stat_bar.dart';
-import '../../../core/widgets/xp_gain_popup.dart';
 import '../../user/providers/user_provider.dart';
 import '../../user/data/user_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../quests/providers/quest_provider.dart';
 import '../../quests/data/quest_model.dart';
 import '../../pomodoro/providers/pomodoro_provider.dart';
+import '../../shell/providers/shell_provider.dart';
+import '../../quests/presentation/add_quest_sheet.dart';
+import '../../character/presentation/wardrobe_screen.dart';
+import '../../../core/widgets/weekly_report_dialog.dart';
+import '../../../core/services/notification_service.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -75,6 +79,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         curve: const Interval(0.25, 0.8, curve: Curves.easeOutCubic),
       ),
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NotificationService.checkDailyReminder(context, ref);
+    });
   }
 
   void _animateXp(double target) {
@@ -190,6 +197,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             padding: const EdgeInsets.all(16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
+                _buildGreetingSection(user),
+                const SizedBox(height: 16),
                 SlideTransition(
                   position: _heroSlide,
                   child: FadeTransition(
@@ -205,6 +214,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   ),
                 ),
                 const SizedBox(height: 20),
+                _buildQuickActionsSection(context, user),
+                const SizedBox(height: 20),
                 
                 // Character Stats Panel (Using GlassmorphicCard and AnimatedStatBars)
                 ScaleTransition(
@@ -215,6 +226,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   ),
                 ),
                 const SizedBox(height: 20),
+
                 
                 // Daily Quests Panel
                 _buildSectionTitle('Günlük Görevler', Icons.local_fire_department),
@@ -454,26 +466,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           final allCompleted = quests.isNotEmpty;
           return GlassmorphicCard(
             borderColor: allCompleted ? AppColors.success : AppColors.primary,
-            child: Column(
-              children: [
-                Text(
-                  allCompleted ? 'Bugünün tüm görevlerini tamamladın! 🏆' : 'Bugün için görev bulunmuyor!',
-                  style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13),
-                ),
-                if (!allCompleted) ...[
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: () {
-                      ref.read(questRepositoryProvider).ensureDailyQuests(uid);
-                    },
-                    child: Text('Günlük Görevleri Oluştur', style: GoogleFonts.inter(color: Colors.white)),
-                  ),
-                ],
-              ],
+            child: Center(
+              child: Text(
+                allCompleted ? 'Bugünün tüm görevlerini tamamladın! 🏆' : 'Bugün için görev bulunmuyor!',
+                style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13),
+              ),
             ),
           );
         }
@@ -599,4 +596,238 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       ),
     );
   }
+
+  static const List<String> _quotes = [
+    "Disiplin, hedefleriniz ile başarı arasındaki köprüdür.",
+    "Zorluklar, karakterine seviye atlatmak için çıkan boss'lardır.",
+    "Bugün atacağın küçük bir adım, yarınki büyük zaferin temelidir.",
+    "Kendi hikayenin kahramanı ol. Bugün seviye atlama günü!",
+    "Odaklan ve içindeki gücü serbest bırak.",
+    "Başarı, her gün sabırla tekrarlanan küçük çabaların toplamıdır.",
+    "Dünün yenilgileri, bugünün tecrübeleridir.",
+    "Sadece başla. Gerisi odaklandıkça kendiliğinden gelecektir.",
+    "Mükemmellik bir eylem değil, bir alışkanlıktır.",
+    "Üşenme, erteleme, vazgeçme. Bugün senin günün!",
+    "Her yeni gün, yeni bir quest ve yeni bir başlangıçtır.",
+    "Zirveye uçarak değil, adım adım tırmanarak ulaşılır.",
+    "Hatalar, denediğini ve geliştiğini gösteren kanıtlardır.",
+    "Bugünkü disiplinin, yarınki özgürlüğündür.",
+    "Hayal etmek yetmez, harekete geçmek gerekir.",
+    "Karakterinin sınırlarını aş ve sınırlarını yeniden tanımla.",
+    "En iyi zaman şimdi. İkinci en iyi zaman ise yarındır.",
+    "Büyük şeyler, küçük şeylerin bir araya getirilmesiyle oluşur.",
+    "Focus ol, dünyayı sessize al ve işine odaklan.",
+    "Asla pes etmeyen birini yenmek imkansızdır.",
+    "Akıttığın her damla ter, karakterine eklenen bir stat puanıdır.",
+    "Fırtınanın geçmesini bekleme, yağmurda dans etmeyi öğren.",
+    "Kendine inan. Eğer sen inanmazsan, kimse inanmaz.",
+    "Her pomodoro seansı, geleceğine yapılan bir yatırımdır.",
+    "Disiplin acısı geçicidir, pişmanlık acısı ise kalıcı."
+  ];
+
+  String _getQuoteOfTheDay() {
+    final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
+    return _quotes[dayOfYear % _quotes.length];
+  }
+
+  String _getGreeting() {
+    final hour = DateTime.now().hour;
+    if (hour >= 5 && hour < 12) {
+      return "Günaydın Savaşçı! ☀️";
+    } else if (hour >= 12 && hour < 17) {
+      return "Tünaydın Savaşçı! 🌤️";
+    } else if (hour >= 17 && hour < 22) {
+      return "İyi Akşamlar Savaşçı! 🌆";
+    } else {
+      return "İyi Geceler Savaşçı! 🌙";
+    }
+  }
+
+  Widget _buildGreetingSection(UserModel user) {
+    return GlassmorphicCard(
+      borderColor: AppColors.primary.withValues(alpha: 0.3),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShaderMask(
+                  shaderCallback: (bounds) => const LinearGradient(
+                    colors: [AppColors.secondary, AppColors.success],
+                  ).createShader(bounds),
+                  child: Text(
+                    _getGreeting(),
+                    style: GoogleFonts.inter(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '"${_getQuoteOfTheDay()}"',
+                  style: GoogleFonts.inter(
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.primary.withValues(alpha: 0.15),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3), width: 1.5),
+            ),
+            child: const Icon(
+              Icons.auto_awesome_rounded,
+              color: AppColors.secondary,
+              size: 24,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickActionsSection(BuildContext context, UserModel user) {
+    Widget buildActionItem({
+      required String label,
+      required IconData icon,
+      required Color color,
+      required VoidCallback onTap,
+    }) {
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 90,
+          margin: const EdgeInsets.only(right: 12),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: color.withValues(alpha: 0.2), width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: color.withValues(alpha: 0.05),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color.withValues(alpha: 0.12),
+                ),
+                child: Icon(icon, color: color, size: 22),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('Hızlı Eylemler', Icons.bolt_rounded),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 96,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            children: [
+              buildActionItem(
+                label: 'Odaklan',
+                icon: Icons.timer_rounded,
+                color: AppColors.secondary,
+                onTap: () {
+                  ref.read(shellIndexProvider.notifier).setIndex(2); // Pomodoro
+                },
+              ),
+              buildActionItem(
+                label: 'Görev Ekle',
+                icon: Icons.add_rounded,
+                color: AppColors.success,
+                onTap: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (ctx) => const AddQuestBottomSheet(),
+                  );
+                },
+              ),
+              buildActionItem(
+                label: 'Rapor',
+                icon: Icons.auto_stories_rounded,
+                color: AppColors.gold,
+                onTap: () {
+                  final weekSessions = ref.read(weekSessionsProvider).value ?? [];
+                  final totalMinutes = weekSessions.fold<int>(0, (sum, s) => sum + s.workMinutes);
+                  final totalSessions = weekSessions.length;
+                  final xpEarned = weekSessions.fold<int>(0, (sum, s) => sum + s.xpEarned);
+
+                  WeeklyReportDialog.show(
+                    context,
+                    totalMinutes: totalMinutes == 0 ? 45 : totalMinutes,
+                    totalSessions: totalSessions == 0 ? 2 : totalSessions,
+                    questsCompleted: user.totalQuestsCompleted == 0 ? 5 : user.totalQuestsCompleted,
+                    xpEarned: xpEarned == 0 ? 150 : xpEarned,
+                    goldEarned: user.gold == 0 ? 75 : user.gold,
+                  );
+                },
+              ),
+              buildActionItem(
+                label: 'Gardırop',
+                icon: Icons.checkroom_rounded,
+                color: AppColors.statKnowledge,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const WardrobeScreen()),
+                  );
+                },
+              ),
+              buildActionItem(
+                label: 'Başarımlar',
+                icon: Icons.emoji_events_rounded,
+                color: AppColors.primary,
+                onTap: () {
+                  ref.read(shellIndexProvider.notifier).setIndex(4); // Karakter/Achievements
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
 }

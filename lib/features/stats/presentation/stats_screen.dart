@@ -17,6 +17,7 @@ class StatsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final userAsync = ref.watch(currentUserProvider);
     final weekSessionsAsync = ref.watch(weekSessionsProvider);
+    final allSessionsAsync = ref.watch(allSessionsProvider);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -48,6 +49,10 @@ class StatsScreen extends ConsumerWidget {
                 _buildSectionTitle('Haftalık Odak Grafiği', Icons.bar_chart_rounded),
                 const SizedBox(height: 12),
                 _buildChartPanel(weekSessionsAsync),
+                const SizedBox(height: 24),
+
+                // Heatmap Panel
+                _buildHeatmapPanel(allSessionsAsync),
                 const SizedBox(height: 24),
                 
                 // Weekly history list
@@ -411,4 +416,187 @@ class StatsScreen extends ConsumerWidget {
       ],
     );
   }
+
+  Widget _buildHeatmapPanel(AsyncValue<List<PomodoroSessionModel>> allSessionsAsync) {
+    return allSessionsAsync.when(
+      loading: () => Container(
+        height: 180,
+        alignment: Alignment.center,
+        child: const CircularProgressIndicator(color: AppColors.primary),
+      ),
+      error: (e, _) => Container(
+        height: 180,
+        alignment: Alignment.center,
+        child: Text('Isı haritası yüklenemedi: $e', style: GoogleFonts.inter(color: AppColors.error)),
+      ),
+      data: (sessions) {
+        // Normalize sessions into date-mapped work minutes
+        final Map<DateTime, int> dailyMinutes = {};
+        for (final s in sessions) {
+          final date = DateTime(s.startedAt.year, s.startedAt.month, s.startedAt.day);
+          dailyMinutes[date] = (dailyMinutes[date] ?? 0) + s.workMinutes;
+        }
+
+        final now = DateTime.now();
+        final today = DateTime(now.year, now.month, now.day);
+        final startOfWeek = today.subtract(Duration(days: today.weekday - 1));
+        // We show the past 14 weeks (current week + 13 past weeks)
+        final startDate = startOfWeek.subtract(const Duration(days: 13 * 7));
+
+        // Colors based on minutes
+        Color getCellColor(DateTime date, int minutes) {
+          if (date.isAfter(today)) {
+            return Colors.transparent; // Future days are transparent or disabled
+          }
+          if (minutes == 0) {
+            return AppColors.surfaceLight.withValues(alpha: 0.4);
+          }
+          if (minutes <= 25) {
+            return AppColors.secondary.withValues(alpha: 0.25);
+          }
+          if (minutes <= 50) {
+            return AppColors.secondary.withValues(alpha: 0.5);
+          }
+          if (minutes <= 75) {
+            return AppColors.secondary.withValues(alpha: 0.75);
+          }
+          return AppColors.secondary;
+        }
+
+        // Generate columns
+        final List<Widget> columns = [];
+
+        for (int c = 0; c < 14; c++) {
+          final weekStart = startDate.add(Duration(days: c * 7));
+          final List<Widget> cells = [];
+          for (int d = 0; d < 7; d++) {
+            final cellDate = weekStart.add(Duration(days: d));
+            final minutes = dailyMinutes[cellDate] ?? 0;
+            final color = getCellColor(cellDate, minutes);
+
+            cells.add(
+              Tooltip(
+                message: cellDate.isAfter(today)
+                    ? 'Gelecek Gün'
+                    : '${DateFormat('d MMMM yyyy').format(cellDate)}: $minutes dk odak',
+                preferBelow: false,
+                textStyle: GoogleFonts.inter(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                decoration: BoxDecoration(
+                  color: AppColors.cardBackground,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+                ),
+                child: Container(
+                  width: 14,
+                  height: 14,
+                  margin: const EdgeInsets.symmetric(vertical: 2),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                ),
+              ),
+            );
+          }
+
+          columns.add(
+            Column(
+              children: cells,
+            ),
+          );
+        }
+
+        return GlassmorphicCard(
+          borderColor: AppColors.primary.withValues(alpha: 0.3),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Odak Isı Haritası (Son 14 Hafta)',
+                    style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  Row(
+                    children: [
+                      Text('Az ', style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 10)),
+                      _buildMiniLegendBox(AppColors.surfaceLight.withValues(alpha: 0.4)),
+                      _buildMiniLegendBox(AppColors.secondary.withValues(alpha: 0.25)),
+                      _buildMiniLegendBox(AppColors.secondary.withValues(alpha: 0.5)),
+                      _buildMiniLegendBox(AppColors.secondary.withValues(alpha: 0.75)),
+                      _buildMiniLegendBox(AppColors.secondary),
+                      Text(' Çok', style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 10)),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Row Labels (Mon, Wed, Fri, Sun)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildRowLabel('Pzt'),
+                      const SizedBox(height: 2),
+                      _buildRowLabel('Sal'),
+                      const SizedBox(height: 2),
+                      _buildRowLabel('Çar'),
+                      const SizedBox(height: 2),
+                      _buildRowLabel('Per'),
+                      const SizedBox(height: 2),
+                      _buildRowLabel('Cum'),
+                      const SizedBox(height: 2),
+                      _buildRowLabel('Cmt'),
+                      const SizedBox(height: 2),
+                      _buildRowLabel('Paz'),
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+                  // Grid Columns
+                  Expanded(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: columns,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMiniLegendBox(Color color) {
+    return Container(
+      width: 8,
+      height: 8,
+      margin: const EdgeInsets.symmetric(horizontal: 1.5),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
+
+  Widget _buildRowLabel(String label) {
+    // Show only Pzt, Çar, Cum, Paz for cleaner appearance
+    final shouldShow = ['Pzt', 'Çar', 'Cum', 'Paz'].contains(label);
+    return Container(
+      height: 14,
+      alignment: Alignment.centerLeft,
+      margin: const EdgeInsets.symmetric(vertical: 2),
+      child: Text(
+        shouldShow ? label : '',
+        style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 8, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
 }
+

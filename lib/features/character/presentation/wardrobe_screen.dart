@@ -2,8 +2,10 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:confetti/confetti.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/glassmorphic_card.dart';
+import '../../../core/widgets/ascend_toast.dart';
 import '../../user/providers/user_provider.dart';
 import '../../user/data/user_model.dart';
 import '../data/loot_pool.dart';
@@ -25,6 +27,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
   int _refundGold = 0;
   
   late AnimationController _shakeController;
+  late ConfettiController _confettiController;
 
   @override
   void initState() {
@@ -33,11 +36,13 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
       vsync: this,
       duration: const Duration(milliseconds: 500),
     );
+    _confettiController = ConfettiController(duration: const Duration(seconds: 2));
   }
 
   @override
   void dispose() {
     _shakeController.dispose();
+    _confettiController.dispose();
     super.dispose();
   }
 
@@ -60,12 +65,11 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
     await repo.sellChest(user.uid, rarityKey, goldReward);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$name satıldı! +$goldReward Altın kazanıldı. 🪙'),
-          backgroundColor: AppColors.success,
-          duration: const Duration(seconds: 2),
-        ),
+      AscendToast.show(
+        context,
+        title: 'Satış Başarılı',
+        message: '$name satıldı! +$goldReward Altın kazanıldı.',
+        type: ToastType.success,
       );
     }
   }
@@ -164,6 +168,7 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
     setState(() {
       _unlockedItem = chosenItem;
     });
+    _confettiController.play();
   }
 
   // Doğrudan Altın harcayarak eşya satın alma
@@ -195,14 +200,20 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
   }
 
   void _showErrorSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: AppColors.error),
+    AscendToast.show(
+      context,
+      title: 'Hata',
+      message: msg,
+      type: ToastType.error,
     );
   }
 
   void _showSuccessSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: AppColors.success),
+    AscendToast.show(
+      context,
+      title: 'Başarılı',
+      message: msg,
+      type: ToastType.success,
     );
   }
 
@@ -681,167 +692,188 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
                 Container(
                   color: Colors.black.withValues(alpha: 0.85),
                   alignment: Alignment.center,
-                  child: AnimatedBuilder(
-                    animation: _shakeController,
-                    builder: (ctx, child) {
-                      final dx = sin(_shakeController.value * 10 * pi) * 8;
-                      return Transform.translate(
-                        offset: Offset(dx, 0),
-                        child: child,
-                      );
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                      child: GlassmorphicCard(
-                        borderColor: _unlockedItem != null ? _unlockedItem!.rarityColor : AppColors.secondary,
-                        padding: const EdgeInsets.all(28),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (_unlockedItem == null) ...[
-                              const Text(
-                                '🎁',
-                                style: TextStyle(fontSize: 60),
-                              ),
-                              const SizedBox(height: 20),
-                              Text(
-                                'Sandık Açılıyor...',
-                                style: GoogleFonts.inter(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Text(
-                                'Ganimet hazırlanıyor, heyecan dorukta!',
-                                style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
-                              ),
-                              const SizedBox(height: 20),
-                              const CircularProgressIndicator(color: AppColors.secondary),
-                            ] else ...[
-                              Text(
-                                _unlockedItem!.rarity == Rarity.legendary ? '👑' : '🎁',
-                                style: const TextStyle(fontSize: 60),
-                              ),
-                              const SizedBox(height: 20),
-                              Text(
-                                'YENİ GANİMET AÇILDI!',
-                                style: GoogleFonts.inter(
-                                  color: _unlockedItem!.rarityColor,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 18,
-                                  letterSpacing: 2.0,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Container(
-                                width: 80,
-                                height: 80,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: _unlockedItem!.color.withValues(alpha: 0.15),
-                                  border: Border.all(color: _unlockedItem!.color, width: 2),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: _unlockedItem!.color.withValues(alpha: 0.3),
-                                      blurRadius: 20,
-                                      spreadRadius: 2,
-                                    ),
-                                  ],
-                                ),
-                                child: Icon(
-                                  _unlockedItem!.slot == 'hat'
-                                      ? Icons.face_rounded
-                                      : (_unlockedItem!.slot == 'torso' ? Icons.checkroom : Icons.wc),
-                                  color: _unlockedItem!.color,
-                                  size: 40,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                _unlockedItem!.name,
-                                style: GoogleFonts.inter(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 20,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '[${_unlockedItem!.rarityName}] ${_unlockedItem!.slot == 'hat' ? 'Şapka' : (_unlockedItem!.slot == 'torso' ? 'Kıyafet' : 'Pantolon')}',
-                                style: GoogleFonts.inter(color: _unlockedItem!.rarityColor, fontSize: 13, fontWeight: FontWeight.bold),
-                              ),
-                              const SizedBox(height: 12),
-                              if (_refundGold > 0)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.success.withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
-                                  ),
-                                  child: Text(
-                                    'Bu eşyaya zaten sahiptiniz!\n+$_refundGold Altın İade Edildi! 🪙',
-                                    textAlign: TextAlign.center,
-                                    style: GoogleFonts.inter(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              const SizedBox(height: 24),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: _unlockedItem!.rarityColor,
-                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                        padding: const EdgeInsets.symmetric(vertical: 12),
-                                      ),
-                                      onPressed: () {
-                                        _equipItemAction(user, _unlockedItem!);
-                                        setState(() {
-                                          _isOpeningChest = false;
-                                        });
-                                      },
-                                      child: Text(
-                                        'Hemen Kuşan ⚔️',
-                                        style: GoogleFonts.inter(
-                                          color: Colors.black,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: TextButton(
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: AppColors.textSecondary,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
-                                          side: const BorderSide(color: AppColors.textSecondary),
-                                        ),
-                                        padding: const EdgeInsets.symmetric(vertical: 12),
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          _isOpeningChest = false;
-                                        });
-                                      },
-                                      child: Text(
-                                        'Kapat',
-                                        style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      Align(
+                        alignment: Alignment.center,
+                        child: ConfettiWidget(
+                          confettiController: _confettiController,
+                          blastDirectionality: BlastDirectionality.explosive,
+                          shouldLoop: false,
+                          colors: const [
+                            Colors.green,
+                            Colors.blue,
+                            Colors.pink,
+                            Colors.orange,
+                            Colors.purple,
+                            Colors.yellow,
                           ],
                         ),
                       ),
-                    ),
+                      AnimatedBuilder(
+                        animation: _shakeController,
+                        builder: (ctx, child) {
+                          final dx = sin(_shakeController.value * 10 * pi) * 8;
+                          return Transform.translate(
+                            offset: Offset(dx, 0),
+                            child: child,
+                          );
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                          child: GlassmorphicCard(
+                            borderColor: _unlockedItem != null ? _unlockedItem!.rarityColor : AppColors.secondary,
+                            padding: const EdgeInsets.all(28),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_unlockedItem == null) ...[
+                                  const Text(
+                                    '🎁',
+                                    style: TextStyle(fontSize: 60),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Text(
+                                    'Sandık Açılıyor...',
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                      letterSpacing: 1.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'Ganimet hazırlanıyor, heyecan dorukta!',
+                                    style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  const CircularProgressIndicator(color: AppColors.secondary),
+                                ] else ...[
+                                  Text(
+                                    _unlockedItem!.rarity == Rarity.legendary ? '👑' : '🎁',
+                                    style: const TextStyle(fontSize: 60),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Text(
+                                    'YENİ GANİMET AÇILDI!',
+                                    style: GoogleFonts.inter(
+                                      color: _unlockedItem!.rarityColor,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 18,
+                                      letterSpacing: 2.0,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Container(
+                                    width: 80,
+                                    height: 80,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _unlockedItem!.color.withValues(alpha: 0.15),
+                                      border: Border.all(color: _unlockedItem!.color, width: 2),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: _unlockedItem!.color.withValues(alpha: 0.3),
+                                          blurRadius: 20,
+                                          spreadRadius: 2,
+                                        ),
+                                      ],
+                                    ),
+                                    child: Icon(
+                                      _unlockedItem!.slot == 'hat'
+                                          ? Icons.face_rounded
+                                          : (_unlockedItem!.slot == 'torso' ? Icons.checkroom : Icons.wc),
+                                      color: _unlockedItem!.color,
+                                      size: 40,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    _unlockedItem!.name,
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 20,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    '[${_unlockedItem!.rarityName}] ${_unlockedItem!.slot == 'hat' ? 'Şapka' : (_unlockedItem!.slot == 'torso' ? 'Kıyafet' : 'Pantolon')}',
+                                    style: GoogleFonts.inter(color: _unlockedItem!.rarityColor, fontSize: 13, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  if (_refundGold > 0)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.success.withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                                      ),
+                                      child: Text(
+                                        'Bu eşyaya zaten sahiptiniz!\n+$_refundGold Altın İade Edildi! 🪙',
+                                        textAlign: TextAlign.center,
+                                        style: GoogleFonts.inter(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  const SizedBox(height: 24),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: _unlockedItem!.rarityColor,
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                          ),
+                                          onPressed: () {
+                                            _equipItemAction(user, _unlockedItem!);
+                                            setState(() {
+                                              _isOpeningChest = false;
+                                            });
+                                          },
+                                          child: Text(
+                                            'Hemen Kuşan ⚔️',
+                                            style: GoogleFonts.inter(
+                                              color: Colors.black,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: TextButton(
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: AppColors.textSecondary,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(12),
+                                              side: const BorderSide(color: AppColors.textSecondary),
+                                            ),
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              _isOpeningChest = false;
+                                            });
+                                          },
+                                          child: Text(
+                                            'Kapat',
+                                            style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
             ],
