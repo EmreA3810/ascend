@@ -317,17 +317,17 @@ class QuestRepository {
         return [
           QuestModel(
             id: '',
-            title: 'Haftalık Algoritma Çözümü (5 Problem)',
+            title: 'Haftalık Kodlama & Ders Çalışma (180 dk)',
             xpReward: 450,
             category: 'weekly',
-            iconName: 'bolt',
+            iconName: 'code',
             isCompleted: false,
             createdAt: now,
             statBoost: 'focus',
             progress: 0.0,
             currentValue: 0,
-            targetValue: 5,
-            unit: 'problem',
+            targetValue: 180,
+            unit: 'dk',
           ),
         ];
       default:
@@ -361,10 +361,20 @@ class QuestRepository {
       for (final quest in defaultDailies) {
         batch.set(_questsCol(uid).doc(), quest.toMap());
       }
+
+      final defaultWeeklies = [
+        ..._getWeeklyQuestsForArea('academic', now),
+        ..._getWeeklyQuestsForArea('fitness', now),
+        ..._getWeeklyQuestsForArea('reading', now),
+        ..._getWeeklyQuestsForArea('coding', now),
+      ];
+      for (final quest in defaultWeeklies) {
+        batch.set(_questsCol(uid).doc(), quest.toMap());
+      }
     } else {
       // Dengeleme/Düzenleme Mantığı:
       // Kullanıcı 3 veya daha fazla odak alanı seçtiyse, her odak alanından sadece birincil (ilk) günlük görevi oluşturuyoruz.
-      // Ayrıca haftalık görevleri de seçilen ilk 2 odak alanı ile sınırlandırıyoruz.
+      // Ayrıca haftalık görevleri de seçilen odak alanları için ekliyoruz.
       final bool limitDaily = focusAreas.length > 2;
       for (int i = 0; i < focusAreas.length; i++) {
         final area = focusAreas[i];
@@ -379,17 +389,130 @@ class QuestRepository {
           }
         }
 
-        // Haftalık görevleri en fazla ilk 2 odak alanı için oluştur
-        if (i < 2) {
-          final weeklyQuests = _getWeeklyQuestsForArea(area, now);
-          for (final q in weeklyQuests) {
-            batch.set(_questsCol(uid).doc(), q.toMap());
-          }
+        // Haftalık görevleri odak alanları için oluştur
+        final weeklyQuests = _getWeeklyQuestsForArea(area, now);
+        for (final q in weeklyQuests) {
+          batch.set(_questsCol(uid).doc(), q.toMap());
         }
       }
     }
 
     await batch.commit();
+  }
+
+  /// Bu haftanın başlangıç tarihini döndürür (Pazartesi 00:00:00)
+  DateTime _getStartOfCurrentWeek() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    // DateTime.weekday: Pazartesi = 1, Pazar = 7
+    return today.subtract(Duration(days: today.weekday - 1));
+  }
+
+  /// Bu haftanın haftalık görevleri yoksa veya eski haftadan kalmışsa otomatik oluşturur
+  Future<void> ensureWeeklyQuests(String uid) async {
+    final now = DateTime.now();
+    final startOfWeek = _getStartOfCurrentWeek();
+
+    // In-memory kontrol yaparak missing index hatasından kaçınıyoruz
+    final existingSnap = await _questsCol(uid).get();
+
+    final hasCurrentWeekQuests = existingSnap.docs.any((doc) {
+      final data = doc.data();
+      final cat = data['category'] as String?;
+      final createdAtTs = data['createdAt'] as Timestamp?;
+      if (cat != 'weekly' || createdAtTs == null) return false;
+      final createdAt = createdAtTs.toDate();
+      return createdAt.isAfter(startOfWeek.subtract(const Duration(seconds: 1)));
+    });
+
+    if (hasCurrentWeekQuests) return; // Bu haftanın görevleri zaten var
+
+    // Eski haftadan kalmış haftalık görevleri temizle
+    final deleteBatch = _db.batch();
+    for (final doc in existingSnap.docs) {
+      final cat = doc.data()['category'] as String?;
+      if (cat == 'weekly') {
+        deleteBatch.delete(doc.reference);
+      }
+    }
+    await deleteBatch.commit();
+
+    // Odak alanlarına göre haftalık görevleri hazırla
+    final user = await _userRepository.getUser(uid);
+    final focusAreas = user?.focusAreas ?? [];
+
+    final List<QuestModel> weeklies = [];
+    if (focusAreas.isEmpty || focusAreas.contains('skipped')) {
+      weeklies.addAll([
+        ..._getWeeklyQuestsForArea('academic', now),
+        ..._getWeeklyQuestsForArea('fitness', now),
+        ..._getWeeklyQuestsForArea('reading', now),
+        ..._getWeeklyQuestsForArea('coding', now),
+      ]);
+    } else {
+      for (final area in focusAreas) {
+        weeklies.addAll(_getWeeklyQuestsForArea(area, now));
+      }
+      // Kullanıcı az sayıda alan seçtiyse en az 3 haftalık hedef sun
+      if (weeklies.length < 3) {
+        for (final area in ['academic', 'fitness', 'reading', 'coding']) {
+          if (!focusAreas.contains(area) && weeklies.length < 3) {
+            weeklies.addAll(_getWeeklyQuestsForArea(area, now));
+          }
+        }
+      }
+    }
+
+    final createBatch = _db.batch();
+    for (final q in weeklies) {
+      createBatch.set(_questsCol(uid).doc(), q.toMap());
+    }
+    await createBatch.commit();
+  }
+
+  /// Haftalık görevleri kullanıcı isteğiyle yeniden sıfırlayıp oluşturur
+  Future<void> forceRefreshWeeklyQuests(String uid) async {
+    final now = DateTime.now();
+    final existingSnap = await _questsCol(uid).get();
+
+    final deleteBatch = _db.batch();
+    for (final doc in existingSnap.docs) {
+      final cat = doc.data()['category'] as String?;
+      if (cat == 'weekly') {
+        deleteBatch.delete(doc.reference);
+      }
+    }
+    await deleteBatch.commit();
+
+    final user = await _userRepository.getUser(uid);
+    final focusAreas = user?.focusAreas ?? [];
+
+    final List<QuestModel> weeklies = [];
+    if (focusAreas.isEmpty || focusAreas.contains('skipped')) {
+      weeklies.addAll([
+        ..._getWeeklyQuestsForArea('academic', now),
+        ..._getWeeklyQuestsForArea('fitness', now),
+        ..._getWeeklyQuestsForArea('reading', now),
+        ..._getWeeklyQuestsForArea('coding', now),
+      ]);
+    } else {
+      for (final area in focusAreas) {
+        weeklies.addAll(_getWeeklyQuestsForArea(area, now));
+      }
+      if (weeklies.length < 3) {
+        for (final area in ['academic', 'fitness', 'reading', 'coding']) {
+          if (!focusAreas.contains(area) && weeklies.length < 3) {
+            weeklies.addAll(_getWeeklyQuestsForArea(area, now));
+          }
+        }
+      }
+    }
+
+    final createBatch = _db.batch();
+    for (final q in weeklies) {
+      createBatch.set(_questsCol(uid).doc(), q.toMap());
+    }
+    await createBatch.commit();
   }
 
   /// Bugünün günlük görevleri yoksa odak alanlarına göre oluşturur (In-memory filtrelenmiş kontrol)

@@ -42,6 +42,7 @@ class _MainShellState extends ConsumerState<MainShell> {
       final u = next.value;
       if (u != null) {
         ref.read(questRepositoryProvider).ensureDailyQuests(u.uid);
+        ref.read(questRepositoryProvider).ensureWeeklyQuests(u.uid);
         ref.read(achievementRepositoryProvider).initializeAchievements(u.uid);
 
         final oldUser = previous?.value;

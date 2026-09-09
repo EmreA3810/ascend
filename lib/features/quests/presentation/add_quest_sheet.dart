@@ -6,6 +6,8 @@ import '../../user/providers/user_provider.dart';
 import '../data/quest_model.dart';
 import '../providers/quest_provider.dart';
 
+import '../domain/quest_xp_calculator.dart';
+
 class AddQuestBottomSheet extends ConsumerStatefulWidget {
   final QuestModel? initialQuest;
   const AddQuestBottomSheet({super.key, this.initialQuest});
@@ -19,7 +21,6 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
   final _titleController = TextEditingController();
   final _targetValueController = TextEditingController(text: '1');
 
-  int _selectedXp = 50;
   String _selectedCategory = 'custom';
   String _selectedStatBoost = 'focus';
   String _selectedIcon = 'star';
@@ -40,15 +41,27 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
     if (quest != null) {
       _titleController.text = quest.title;
       _targetValueController.text = quest.targetValue.toString();
-      _selectedXp = quest.xpReward;
       _selectedCategory = quest.category;
       _selectedStatBoost = quest.statBoost;
       _selectedIcon = quest.iconName;
       _selectedUnit = quest.unit;
     }
+
+    _targetValueController.addListener(_onTargetValueChanged);
   }
 
-  final List<int> _xpOptions = const [30, 50, 80, 100, 150];
+  void _onTargetValueChanged() {
+    setState(() {});
+  }
+
+  int get _calculatedXp {
+    final targetVal = int.tryParse(_targetValueController.text.trim()) ?? 1;
+    return QuestXpCalculator.calculateXp(
+      targetValue: targetVal,
+      unit: _selectedUnit,
+      category: _selectedCategory,
+    );
+  }
 
   final List<Map<String, String>> _stats = const [
     {'value': 'focus', 'label': 'Odak', 'color': '0xFF00E5FF'},
@@ -70,6 +83,7 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
 
   @override
   void dispose() {
+    _targetValueController.removeListener(_onTargetValueChanged);
     _titleController.dispose();
     _targetValueController.dispose();
     super.dispose();
@@ -98,13 +112,14 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
     if (user == null) return;
 
     final targetVal = int.tryParse(_targetValueController.text.trim()) ?? 1;
+    final xpReward = _calculatedXp;
 
     final isEdit = widget.initialQuest != null;
 
     final questData = QuestModel(
       id: isEdit ? widget.initialQuest!.id : '',
       title: _titleController.text.trim(),
-      xpReward: _selectedXp,
+      xpReward: xpReward,
       category: _selectedCategory,
       iconName: _selectedIcon,
       isCompleted: isEdit ? widget.initialQuest!.isCompleted : false,
@@ -335,47 +350,169 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
               ),
               const SizedBox(height: 20),
 
-              // XP Selector
+              // Görev Kategorisi (Türü)
               Text(
-                'XP Ödülü',
+                'Görev Kategorisi',
                 style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: _xpOptions.map((xp) {
-                  final isSelected = _selectedXp == xp;
+                children: [
+                  {'val': 'daily', 'label': 'Günlük', 'icon': Icons.today_rounded},
+                  {'val': 'weekly', 'label': 'Haftalık', 'icon': Icons.date_range_rounded},
+                  {'val': 'custom', 'label': 'Özel Hedef', 'icon': Icons.star_rounded},
+                ].map((cat) {
+                  final isSelected = _selectedCategory == cat['val'];
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: GestureDetector(
-                        onTap: () => setState(() => _selectedXp = xp),
+                        onTap: () => setState(() => _selectedCategory = cat['val'] as String),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
-                            color: isSelected ? AppColors.success.withValues(alpha: 0.15) : AppColors.cardBackground,
+                            color: isSelected ? AppColors.primary.withValues(alpha: 0.15) : AppColors.cardBackground,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: isSelected ? AppColors.success : AppColors.primary.withValues(alpha: 0.1),
+                              color: isSelected ? AppColors.primary : AppColors.primary.withValues(alpha: 0.1),
                               width: 1.5,
                             ),
                           ),
-                          child: Center(
-                            child: Text(
-                              '+$xp XP',
-                              style: GoogleFonts.inter(
-                                color: isSelected ? AppColors.success : Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                cat['icon'] as IconData,
+                                size: 14,
+                                color: isSelected ? AppColors.primary : AppColors.textSecondary,
                               ),
-                            ),
+                              const SizedBox(width: 4),
+                              Text(
+                                cat['label'] as String,
+                                style: GoogleFonts.inter(
+                                  color: isSelected ? Colors.white : AppColors.textSecondary,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
                     ),
                   );
                 }).toList(),
+              ),
+              const SizedBox(height: 20),
+
+              // Sistem Tarafından Atanan XP & Ödül Kartı
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      QuestXpCalculator.getChestColor(_calculatedXp).withValues(alpha: 0.12),
+                      AppColors.cardBackground,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: QuestXpCalculator.getChestColor(_calculatedXp).withValues(alpha: 0.4),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: QuestXpCalculator.getChestColor(_calculatedXp).withValues(alpha: 0.1),
+                      blurRadius: 15,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.auto_awesome,
+                              size: 16,
+                              color: QuestXpCalculator.getChestColor(_calculatedXp),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'SİSTEM TARAFINDAN ATANAN ÖDÜL',
+                              style: GoogleFonts.inter(
+                                color: QuestXpCalculator.getChestColor(_calculatedXp),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            QuestXpCalculator.getChestRarityName(_calculatedXp),
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Text(
+                          '+$_calculatedXp XP',
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '+$_calculatedXp Altın 🪙',
+                            style: GoogleFonts.inter(
+                              color: AppColors.success,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Hedef miktarı ve birimine göre otomatik hesaplanan adil sistem ödülü.',
+                      style: GoogleFonts.inter(
+                        color: AppColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 20),
 

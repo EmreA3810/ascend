@@ -23,6 +23,12 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final user = ref.read(currentUserProvider).value;
+      if (user != null) {
+        ref.read(questRepositoryProvider).ensureWeeklyQuests(user.uid);
+      }
+    });
   }
 
   @override
@@ -37,6 +43,32 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
     if (xp >= 75) return 'Nadir Sandık 💙';
     if (xp >= 50) return 'Sıradışı Sandık 💚';
     return 'Sıradan Sandık 🤎';
+  }
+
+  bool _canManuallyIncrement(QuestModel quest) {
+    final cleanUnit = quest.unit.trim().toLowerCase();
+    final lowerTitle = quest.title.toLowerCase();
+
+    // Antrenman, spor ve set bazlı görevlerde manuel artı butonu olmamalı (Antrenman Koçu ile yapılır)
+    if (cleanUnit == 'set' ||
+        lowerTitle.contains('antrenman') ||
+        lowerTitle.contains('spor') ||
+        lowerTitle.contains('fitness')) {
+      return false;
+    }
+
+    // Problem çözme, ders çalışma, dakika ve pomodoro seanslarında manuel artı butonu olmamalı
+    if (cleanUnit == 'problem' ||
+        cleanUnit == 'dk' ||
+        cleanUnit == 'seans' ||
+        lowerTitle.contains('problem') ||
+        lowerTitle.contains('ders') ||
+        lowerTitle.contains('kod')) {
+      return false;
+    }
+
+    // Yalnızca su içme, sayfa okuma veya adet bazlı basit alışkanlıklar manuel tıklanabilir
+    return cleanUnit == 'bardak' || cleanUnit == 'adet' || cleanUnit == 'sayfa';
   }
 
   Future<void> _incrementProgress(String uid, QuestModel quest) async {
@@ -59,6 +91,11 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
   }
 
   Future<void> _onRefresh() async {
+    final user = ref.read(currentUserProvider).value;
+    if (user != null) {
+      await ref.read(questRepositoryProvider).ensureDailyQuests(user.uid);
+      await ref.read(questRepositoryProvider).ensureWeeklyQuests(user.uid);
+    }
     ref.invalidate(dailyQuestsProvider);
     ref.invalidate(weeklyQuestsProvider);
     ref.invalidate(customQuestsProvider);
@@ -271,22 +308,182 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
         child: Text('Görevler yüklenirken hata oluştu', style: GoogleFonts.inter(color: Colors.white)),
       ),
       data: (quests) {
+        final now = DateTime.now();
+        final daysLeft = 7 - now.weekday;
+        final daysLeftText = daysLeft == 0 ? 'Son Gün! ⚡' : '$daysLeft gün kaldı';
+        final completedCount = quests.where((q) => q.isCompleted).length;
+        final totalCount = quests.length;
+        final progressRatio = totalCount > 0 ? (completedCount / totalCount).clamp(0.0, 1.0) : 0.0;
+
         return RefreshIndicator(
           onRefresh: _onRefresh,
           color: AppColors.primary,
           backgroundColor: AppColors.cardBackground,
-          child: quests.isEmpty
-              ? _buildEmptyState('Bu hafta için görev bulunmuyor.')
-              : Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: ListView.builder(
-                    itemCount: quests.length,
-                    itemBuilder: (ctx, i) {
-                      final quest = quests[i];
-                      return _buildWeeklyQuestCard(uid, quest);
-                    },
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // Haftalık Durum & Geri Sayım Kartı
+              Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.orangeAccent.withValues(alpha: 0.15),
+                      AppColors.cardBackground,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.orangeAccent.withValues(alpha: 0.3),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orangeAccent.withValues(alpha: 0.05),
+                      blurRadius: 15,
+                    ),
+                  ],
                 ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.orangeAccent.withValues(alpha: 0.2),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.bolt_rounded, color: Colors.orangeAccent, size: 20),
+                            ),
+                            const SizedBox(width: 10),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Haftalık Meydan Okuma',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                Text(
+                                  'Pazar 23:59 sıfırlanır • $daysLeftText',
+                                  style: GoogleFonts.inter(
+                                    color: Colors.orangeAccent,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.refresh_rounded, color: Colors.orangeAccent, size: 20),
+                          tooltip: 'Haftalık Görevleri Yenile',
+                          onPressed: () async {
+                            await ref.read(questRepositoryProvider).forceRefreshWeeklyQuests(uid);
+                            ref.invalidate(weeklyQuestsProvider);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Haftalık görevler başarıyla yenilendi! 🔄'),
+                                  backgroundColor: AppColors.success,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Haftalık İlerleme',
+                          style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
+                        ),
+                        Text(
+                          '$completedCount / $totalCount Tamamlandı',
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: progressRatio,
+                        minHeight: 8,
+                        backgroundColor: AppColors.background,
+                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.orangeAccent),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              if (quests.isEmpty)
+                Container(
+                  padding: const EdgeInsets.all(28),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBackground,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.calendar_month_rounded, color: Colors.orangeAccent, size: 48),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Bu Hafta İçin Henüz Görevin Yok',
+                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Odak alanlarına göre otomatik haftalık görev paketini hemen başlatabilirsin.',
+                        textAlign: TextAlign.center,
+                        style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13),
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orangeAccent,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () async {
+                          await ref.read(questRepositoryProvider).ensureWeeklyQuests(uid);
+                          ref.invalidate(weeklyQuestsProvider);
+                        },
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: Text(
+                          'Haftalık Görevleri Başlat',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ...quests.map((quest) => _buildWeeklyQuestCard(uid, quest)),
+            ],
+          ),
         );
       },
     );
@@ -447,7 +644,7 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
                 ],
               ),
             ),
-            if (!isDone && quest.targetValue > 1 && quest.unit.trim().toLowerCase() != 'dk') ...[
+            if (!isDone && quest.targetValue > 1 && _canManuallyIncrement(quest)) ...[
               IconButton(
                 icon: const Icon(Icons.add_circle_outline, color: AppColors.primary, size: 28),
                 onPressed: () => _incrementProgress(uid, quest),
@@ -475,10 +672,13 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
             GestureDetector(
               onTap: (quest.targetValue > 1 || const ['dk', 'set', 'sayfa', 'problem', 'bardak', 'seans'].contains(quest.unit))
                   ? () {
+                      final isFitness = quest.unit == 'set' || quest.title.toLowerCase().contains('antrenman') || quest.title.toLowerCase().contains('spor');
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Bu görev sayısal ilerlemelidir. Pomodoro veya antrenman tamamlayarak ilerletilebilir! ⚡'),
-                          duration: Duration(seconds: 2),
+                        SnackBar(
+                          content: Text(isFitness
+                              ? 'Bu görev Antrenman Koçu ile setler tamamlandıkça otomatik ilerler! 💪'
+                              : 'Bu görev Pomodoro veya çalışma seansı tamamlandıkça otomatik ilerler! ⚡'),
+                          duration: const Duration(seconds: 2),
                         ),
                       );
                     }
@@ -659,7 +859,7 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
                     ),
                   ),
                 ),
-                           if (!isDone && quest.targetValue > 1 && quest.unit.trim().toLowerCase() != 'dk') ...[
+            if (!isDone && quest.targetValue > 1 && _canManuallyIncrement(quest)) ...[
                   IconButton(
                     icon: const Icon(Icons.add_circle_outline, color: Colors.orangeAccent, size: 26),
                     onPressed: () => _incrementProgress(uid, quest),
@@ -687,10 +887,13 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
                 GestureDetector(
                   onTap: (quest.targetValue > 1 || const ['dk', 'set', 'sayfa', 'problem', 'bardak', 'seans'].contains(quest.unit))
                       ? () {
+                          final isFitness = quest.unit == 'set' || quest.title.toLowerCase().contains('antrenman') || quest.title.toLowerCase().contains('spor');
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Bu görev sayısal ilerlemelidir. Pomodoro veya antrenman tamamlayarak ilerletilebilir! ⚡'),
-                              duration: Duration(seconds: 2),
+                            SnackBar(
+                              content: Text(isFitness
+                                  ? 'Bu görev Antrenman Koçu ile setler tamamlandıkça otomatik ilerler! 💪'
+                                  : 'Bu görev Pomodoro veya çalışma seansı tamamlandıkça otomatik ilerler! ⚡'),
+                              duration: const Duration(seconds: 2),
                             ),
                           );
                         }

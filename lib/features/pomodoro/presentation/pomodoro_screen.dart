@@ -30,12 +30,116 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
   String _selectedFocusArea = 'academic'; // 'academic', 'fitness', 'reading', 'coding'
 
-  // Workout Assistant state
-  int _currentExerciseIndex = 0; // 0: Push-up, 1: Squat, 2: Plank
+  // Workout Coach state
+  String _hiitState = 'ready'; // 'ready', 'countdown', 'work', 'rest', 'finished'
+  int _hiitSecondsLeft = 40;
+  int _hiitTotalWorkSeconds = 40;
+  int _hiitTotalRestSeconds = 20;
+  int _hiitCountdownSeconds = 3;
+  bool _isHiitPaused = false;
+  Timer? _hiitTimer;
+  int _currentExerciseIndex = 0;
   int _completedSets = 0; // 0 to 3
-  bool _isResting = false;
-  int _restSecondsLeft = 30;
-  Timer? _restTimer;
+  int _totalWorkoutSecondsElapsed = 0;
+
+  // Exercise pool & user-selected routine
+  final List<String> _selectedExerciseKeys = ['push_up', 'squat', 'plank'];
+
+  final List<Map<String, dynamic>> _exerciseCatalog = [
+    {
+      'key': 'push_up',
+      'name': 'Şınav (Push-up)',
+      'desc': 'Göğüs, omuz ve arka kol kaslarını çalıştırır.',
+      'icon': Icons.fitness_center_rounded,
+      'tip': 'Gövdeni düz tut, nefes vererek yukarı bas! 💪',
+      'calcTarget': (int level) => '${(8 + level * 2).clamp(8, 40)} Tekrar / 40s',
+    },
+    {
+      'key': 'squat',
+      'name': 'Squat',
+      'desc': 'Bacak, kalça ve alt vücut gücünü artırır.',
+      'icon': Icons.accessibility_new_rounded,
+      'tip': 'Dizlerin parmak ucunu geçmesin, kalçanı geriye ver! 🦵',
+      'calcTarget': (int level) => '${(12 + level * 3).clamp(12, 60)} Tekrar / 40s',
+    },
+    {
+      'key': 'plank',
+      'name': 'Plank',
+      'desc': 'Karın ve çekirdek (core) dayanıklılığını artırır.',
+      'icon': Icons.timer_rounded,
+      'tip': 'Belini çökertme, karın kaslarını sıkarak sabit kal! 🔥',
+      'calcTarget': (int level) => '${(20 + level * 5).clamp(20, 90)} Saniye / 40s',
+    },
+    {
+      'key': 'lunge',
+      'name': 'Lunge (Adımlama)',
+      'desc': 'Bacak kuvveti, kalça ve denge koordinasyonunu artırır.',
+      'icon': Icons.directions_walk_rounded,
+      'tip': 'Ön dizin 90 derece bükülsün, gövdeni dik tut! 🚶',
+      'calcTarget': (int level) => '${(10 + level * 2).clamp(10, 40)} Tekrar / 40s',
+    },
+    {
+      'key': 'jumping_jack',
+      'name': 'Jumping Jack',
+      'desc': 'Nabzı yükselten dinamik kardiyo ve kondisyon hareketi.',
+      'icon': Icons.flash_on_rounded,
+      'tip': 'Kollarını ve bacaklarını ritmik şekilde açıp kapat! ⚡',
+      'calcTarget': (int level) => '${(25 + level * 4).clamp(25, 80)} Tekrar / 40s',
+    },
+    {
+      'key': 'crunch',
+      'name': 'Mekik (Crunch)',
+      'desc': 'Üst ve orta karın kaslarını hedefler.',
+      'icon': Icons.self_improvement_rounded,
+      'tip': 'Boynunu zorlamadan karın kaslarını sıkarak kalk! 🎯',
+      'calcTarget': (int level) => '${(12 + level * 3).clamp(12, 50)} Tekrar / 40s',
+    },
+    {
+      'key': 'mountain_climber',
+      'name': 'Dağ Tırmanışı (Mountain Climber)',
+      'desc': 'Karın kası aktivasyonu ve patlayıcı kardiyo.',
+      'icon': Icons.terrain_rounded,
+      'tip': 'Şınav pozisyonunda dizlerini sırayla göğsüne çek! 🏔️',
+      'calcTarget': (int level) => '${(20 + level * 4).clamp(20, 70)} Tekrar / 40s',
+    },
+    {
+      'key': 'dips',
+      'name': 'Sandalye Dips',
+      'desc': 'Arka kol (triceps) ve omuz kuvveti geliştirir.',
+      'icon': Icons.chair_alt_rounded,
+      'tip': 'Dirseklerini 90 derece bük ve güçlüce yukarı it! 🪑',
+      'calcTarget': (int level) => '${(8 + level * 2).clamp(8, 35)} Tekrar / 40s',
+    },
+  ];
+
+  List<Map<String, dynamic>> _getActiveExercises(int level) {
+    return _selectedExerciseKeys.map((key) {
+      final item = _exerciseCatalog.firstWhere(
+        (e) => e['key'] == key,
+        orElse: () => _exerciseCatalog.first,
+      );
+      final calcTarget = item['calcTarget'];
+      String targetStr = '';
+      if (calcTarget is Function) {
+        try {
+          targetStr = (calcTarget as dynamic)(level).toString();
+        } catch (_) {
+          targetStr = '${_hiitTotalWorkSeconds}s Egzersiz';
+        }
+      } else {
+        targetStr = item['target']?.toString() ?? '${_hiitTotalWorkSeconds}s Egzersiz';
+      }
+
+      return {
+        'key': item['key'],
+        'name': item['name'] ?? 'Egzersiz',
+        'target': targetStr,
+        'desc': item['desc'] ?? '',
+        'icon': item['icon'] ?? Icons.fitness_center_rounded,
+        'tip': item['tip'] ?? '',
+      };
+    }).toList();
+  }
 
   // Academic Assistant state
   List<Map<String, dynamic>>? _academicGoals;
@@ -123,7 +227,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
   @override
   void dispose() {
     _timer?.cancel();
-    _restTimer?.cancel();
+    _hiitTimer?.cancel();
     _pulseController.dispose();
     _playerSubscription?.cancel();
     _player.dispose();
@@ -404,109 +508,181 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     }
   }
 
-  void _startRestTimer() {
-    _restTimer?.cancel();
+  void _startHiitWorkout(String uid) {
+    _hiitTimer?.cancel();
     setState(() {
-      _isResting = true;
-      _restSecondsLeft = 30;
+      _hiitState = 'countdown';
+      _hiitCountdownSeconds = 3;
+      _isHiitPaused = false;
+      _currentExerciseIndex = 0;
+      _completedSets = 0;
+      _totalWorkoutSecondsElapsed = 0;
     });
 
-    _restTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (_restSecondsLeft > 1) {
+    _hiitTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_isHiitPaused) return;
+
+      if (_hiitCountdownSeconds > 1) {
         setState(() {
-          _restSecondsLeft--;
+          _hiitCountdownSeconds--;
         });
       } else {
-        _endRest();
+        timer.cancel();
+        _startHiitWorkPhase(uid);
       }
     });
   }
 
-  void _endRest() {
-    _restTimer?.cancel();
+  void _startHiitWorkPhase(String uid) {
+    _hiitTimer?.cancel();
     setState(() {
-      _isResting = false;
+      _hiitState = 'work';
+      _hiitSecondsLeft = _hiitTotalWorkSeconds;
+      _isHiitPaused = false;
+    });
+
+    _hiitTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_isHiitPaused) return;
+
+      setState(() {
+        _totalWorkoutSecondsElapsed++;
+      });
+
+      if (_hiitSecondsLeft > 1) {
+        setState(() {
+          _hiitSecondsLeft--;
+        });
+      } else {
+        timer.cancel();
+        _onHiitSetCompleted(uid);
+      }
     });
   }
 
-  void _onSetCompleted(String uid) async {
-    if (_isResting) return;
+  void _onHiitSetCompleted(String uid) async {
+    _hiitTimer?.cancel();
 
     final dailyQuests = ref.read(dailyQuestsProvider).value ?? [];
     final weeklyQuests = ref.read(weeklyQuestsProvider).value ?? [];
     final customQuests = ref.read(customQuestsProvider).value ?? [];
 
-    // 1. Increment quest progress
+    // Set bazlı görevleri ilerlet
     final targetQuests = [...dailyQuests, ...weeklyQuests, ...customQuests]
         .where((q) => q.unit == 'set' && !q.isCompleted);
     for (final q in targetQuests) {
       await ref.read(questRepositoryProvider).incrementQuestProgress(uid, q.id, 1);
     }
 
-    // 2. Award XP and boost strength stat
-    await ref.read(userRepositoryProvider).addXp(uid, 10);
+    // Dakika bazlı spor görevlerini de ilerlet
+    final minuteQuests = [...dailyQuests, ...weeklyQuests, ...customQuests]
+        .where((q) => q.unit == 'dk' && (q.title.toLowerCase().contains('spor') || q.title.toLowerCase().contains('fitness')) && !q.isCompleted);
+    for (final q in minuteQuests) {
+      await ref.read(questRepositoryProvider).incrementQuestProgress(uid, q.id, 1);
+    }
+
+    // XP ve stat boost
+    await ref.read(userRepositoryProvider).addXp(uid, 15);
     await ref.read(userRepositoryProvider).boostStat(uid, 'strength', 1);
-    
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Harika! Set tamamlandı. +10 XP ve +1 GÜÇ kazanıldı. 💪'),
-          duration: Duration(seconds: 2),
+        SnackBar(
+          content: Text('🔥 Set Tamamlandı! +15 XP ve +1 GÜÇ kazanıldı.'),
+          backgroundColor: AppColors.statStrength,
+          duration: const Duration(seconds: 2),
         ),
       );
     }
 
-    // 3. Check progression
     setState(() {
       _completedSets++;
     });
 
-    // Check if exercise completed
     if (_completedSets >= 3) {
-      if (_currentExerciseIndex < 2) {
-        // Move to next exercise
-        _startRestTimer();
+      if (_currentExerciseIndex < _selectedExerciseKeys.length - 1) {
         setState(() {
           _currentExerciseIndex++;
           _completedSets = 0;
         });
+        _startHiitRestPhase(uid);
       } else {
-        // All exercises completed
-        _onWorkoutComplete(uid);
+        _onHiitWorkoutFinished(uid);
       }
     } else {
-      // Start rest timer between sets
-      _startRestTimer();
+      _startHiitRestPhase(uid);
     }
   }
 
-  Future<void> _onWorkoutComplete(String uid) async {
-    _restTimer?.cancel();
+  void _startHiitRestPhase(String uid) {
+    _hiitTimer?.cancel();
     setState(() {
-      _isResting = false;
-      _completedSets = 0;
-      _currentExerciseIndex = 0;
+      _hiitState = 'rest';
+      _hiitSecondsLeft = _hiitTotalRestSeconds;
+      _isHiitPaused = false;
     });
 
-    // Save pomodoro session
+    _hiitTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (_isHiitPaused) return;
+
+      if (_hiitSecondsLeft > 1) {
+        setState(() {
+          _hiitSecondsLeft--;
+        });
+      } else {
+        timer.cancel();
+        _startHiitWorkPhase(uid);
+      }
+    });
+  }
+
+  void _skipHiitRest(String uid) {
+    _startHiitWorkPhase(uid);
+  }
+
+  void _toggleHiitPause() {
+    setState(() {
+      _isHiitPaused = !_isHiitPaused;
+    });
+  }
+
+  void _resetHiitWorkout() {
+    _hiitTimer?.cancel();
+    setState(() {
+      _hiitState = 'ready';
+      _currentExerciseIndex = 0;
+      _completedSets = 0;
+      _isHiitPaused = false;
+      _hiitSecondsLeft = _hiitTotalWorkSeconds;
+    });
+  }
+
+  Future<void> _onHiitWorkoutFinished(String uid) async {
+    _hiitTimer?.cancel();
+    setState(() {
+      _hiitState = 'finished';
+    });
+
+    final totalMinutes = (_totalWorkoutSecondsElapsed / 60).ceil().clamp(5, 45);
     final ended = DateTime.now();
-    final started = ended.subtract(const Duration(minutes: 25));
-    const xpEarned = 50; // Special workout completion XP
+    final started = ended.subtract(Duration(minutes: totalMinutes));
+    const xpEarned = 75;
 
     final session = PomodoroSessionModel(
       id: '',
       startedAt: started,
       endedAt: ended,
-      workMinutes: 25,
+      workMinutes: totalMinutes,
       breakMinutes: 5,
       xpEarned: xpEarned,
       completed: true,
     );
 
     await ref.read(pomodoroRepositoryProvider).saveSession(uid, session);
+    await ref.read(userRepositoryProvider).addXp(uid, xpEarned);
+    await ref.read(userRepositoryProvider).boostStat(uid, 'strength', 3);
 
     if (mounted) {
-      XpGainPopup.show(context, xp: xpEarned, statName: 'strength', statAmount: 2);
+      XpGainPopup.show(context, xp: xpEarned, statName: 'strength', statAmount: 3);
     }
   }
 
@@ -573,33 +749,16 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
   }
 
   Widget _buildWorkoutAssistant(String uid, int level) {
-    // Reps scaling based on user level
-    final pushUpReps = (5 + level * 2).clamp(5, 40);
-    final squatReps = (10 + level * 3).clamp(10, 60);
-    final plankDuration = (20 + level * 5).clamp(20, 180);
-
-    final exercises = [
-      {
-        'name': 'Şınav (Push-up)',
-        'target': '$pushUpReps Tekrar',
-        'desc': 'Göğüs ve kol kaslarını çalıştırır.',
-        'icon': Icons.fitness_center,
-      },
-      {
-        'name': 'Squat',
-        'target': '$squatReps Tekrar',
-        'desc': 'Bacak ve kalça kaslarını çalıştırır.',
-        'icon': Icons.accessibility_new_rounded,
-      },
-      {
-        'name': 'Plank',
-        'target': '$plankDuration Saniye',
-        'desc': 'Karın ve çekirdek (core) bölgesini güçlendirir.',
-        'icon': Icons.timer_outlined,
-      },
-    ];
-
-    final currentExercise = exercises[_currentExerciseIndex];
+    final exercises = _getActiveExercises(level);
+    final currentExercise = exercises.isNotEmpty
+        ? exercises[_currentExerciseIndex.clamp(0, exercises.length - 1)]
+        : {
+            'name': 'Egzersiz',
+            'target': '40s',
+            'desc': '',
+            'icon': Icons.fitness_center_rounded,
+            'tip': '',
+          };
 
     return Container(
       width: double.infinity,
@@ -607,11 +766,18 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppColors.statStrength.withValues(alpha: 0.3), width: 1.5),
+        border: Border.all(
+          color: _hiitState == 'work'
+              ? AppColors.statStrength.withValues(alpha: 0.5)
+              : (_hiitState == 'rest'
+                  ? AppColors.secondary.withValues(alpha: 0.5)
+                  : AppColors.statStrength.withValues(alpha: 0.2)),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.statStrength.withValues(alpha: 0.05),
-            blurRadius: 20,
+            color: (_hiitState == 'work' ? AppColors.statStrength : AppColors.secondary).withValues(alpha: 0.08),
+            blurRadius: 24,
             spreadRadius: 2,
           ),
         ],
@@ -619,17 +785,30 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Header info
+          // Header Bar
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Antrenman Yardımcısı',
-                style: GoogleFonts.inter(
-                  color: AppColors.statStrength,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.statStrength.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.flash_on_rounded, color: AppColors.statStrength, size: 18),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Antrenman Koçu',
+                    style: GoogleFonts.inter(
+                      color: AppColors.statStrength,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
               ),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -638,7 +817,11 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Egzersiz ${_currentExerciseIndex + 1}/3',
+                  _hiitState == 'ready'
+                      ? '${exercises.length} Egzersiz • 3 Set'
+                      : (_hiitState == 'finished'
+                          ? 'Tamamlandı 🏆'
+                          : 'Egzersiz ${_currentExerciseIndex + 1}/${exercises.length} • Set ${_completedSets + 1}/3'),
                   style: GoogleFonts.inter(
                     color: AppColors.statStrength,
                     fontWeight: FontWeight.bold,
@@ -650,101 +833,315 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
           ),
           const SizedBox(height: 20),
 
-          if (_isResting) ...[
-            // Rest state
-            Column(
-              children: [
-                const SizedBox(
-                  width: 100,
-                  height: 100,
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      CircularProgressIndicator(
-                        value: null,
-                        color: AppColors.secondary,
-                        strokeWidth: 6,
+          // --- DURUM 1: HAZIRLIK / BAŞLANGIÇ EKRANI ---
+          if (_hiitState == 'ready') ...[
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.statStrength.withValues(alpha: 0.15)),
+              ),
+              child: Column(
+                children: [
+                  InkWell(
+                    onTap: () => _showExerciseSelectionSheet(context, level),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.statStrength.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '🔥 ${_hiitTotalWorkSeconds}s Egzersiz',
+                              style: GoogleFonts.inter(color: AppColors.statStrength, fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Text('➔', style: TextStyle(color: Colors.white54)),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.secondary.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '☕ ${_hiitTotalRestSeconds}s Mola',
+                              style: GoogleFonts.inter(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.tune_rounded, size: 16, color: AppColors.statStrength),
+                        ],
                       ),
-                      Icon(Icons.coffee_rounded, color: AppColors.secondary, size: 40),
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Süreleri ve hareket havuzunu özelleştirmek için dokun. Başladığında telefon sana koçluk eder.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Egzersiz Listesi Başlığı & Düzenle Butonu
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
                 Text(
-                  'MOLA ZAMANI',
+                  'Antrenman Programı (${exercises.length} Hareket)',
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    letterSpacing: 2,
+                    fontSize: 13,
                   ),
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  'Sonraki sete hazırlan: $_restSecondsLeft saniye kaldı',
-                  style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.secondary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                TextButton.icon(
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    backgroundColor: AppColors.statStrength.withValues(alpha: 0.12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  onPressed: _endRest,
-                  icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
+                  onPressed: () => _showExerciseSelectionSheet(context, level),
+                  icon: const Icon(Icons.tune_rounded, color: AppColors.statStrength, size: 16),
                   label: Text(
-                    'Molayı Geç',
-                    style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold),
+                    'Düzenle',
+                    style: GoogleFonts.inter(
+                      color: AppColors.statStrength,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
             ),
-          ] else ...[
-            // Workout state
+            const SizedBox(height: 10),
+
+            // Egzersiz Listesi Önizleme
+            ...List.generate(exercises.length, (idx) {
+              final ex = exercises[idx];
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Row(
+                  children: [
+                    Icon(ex['icon'] as IconData, color: AppColors.statStrength, size: 22),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            ex['name'] as String,
+                            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          Text(
+                            ex['target'] as String,
+                            style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.check_circle_outline, color: AppColors.statStrength, size: 18),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 16),
+
+            // Başlat Butonu
+            SizedBox(
+              width: double.infinity,
+              height: 54,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.statStrength,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 6,
+                  shadowColor: AppColors.statStrength.withValues(alpha: 0.4),
+                ),
+                onPressed: () => _startHiitWorkout(uid),
+                icon: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24),
+                label: Text(
+                  'Antrenmanı Başlat 🔥',
+                  style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+              ),
+            ),
+          ]
+
+          // --- DURUM 2: 3, 2, 1 GERİ SAYIM ---
+          else if (_hiitState == 'countdown') ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 30),
+              child: Column(
+                children: [
+                  Text(
+                    'HAZIRLAN!',
+                    style: GoogleFonts.inter(
+                      color: AppColors.statStrength,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    width: 110,
+                    height: 110,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.statStrength.withValues(alpha: 0.15),
+                      border: Border.all(color: AppColors.statStrength, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.statStrength.withValues(alpha: 0.3),
+                          blurRadius: 20,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      '$_hiitCountdownSeconds',
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 48,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'İlk Hareket: ${currentExercise['name']}',
+                    style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    currentExercise['tip'] as String,
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ]
+
+          // --- DURUM 3: ÇALIŞMA (WORK) AŞAMASI (40 SANİYE) ---
+          else if (_hiitState == 'work') ...[
             Column(
               children: [
-                // Exercise details card
+                // Durum Rozeti
                 Container(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.statStrength.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.statStrength.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.fitness_center_rounded, color: AppColors.statStrength, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        'ÇALIŞMA AŞAMASI • HEDEFİ ZORLA!',
+                        style: GoogleFonts.inter(
+                          color: AppColors.statStrength,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Dairesel Geri Sayım Sayacı
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 170,
+                      height: 170,
+                      child: CircularProgressIndicator(
+                        value: (_hiitSecondsLeft / _hiitTotalWorkSeconds).clamp(0.0, 1.0),
+                        strokeWidth: 10,
+                        backgroundColor: AppColors.background,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.statStrength),
+                        strokeCap: StrokeCap.round,
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '00:${_hiitSecondsLeft.toString().padLeft(2, '0')}',
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 38,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        Text(
+                          _isHiitPaused ? 'DURAKLATILDI' : 'SANİYE',
+                          style: GoogleFonts.inter(
+                            color: _isHiitPaused ? Colors.amber : AppColors.textSecondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Egzersiz Bilgi Kartı
+                Container(
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: AppColors.background,
                     borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.statStrength.withValues(alpha: 0.2)),
                   ),
                   child: Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: AppColors.statStrength.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
-                          currentExercise['icon'] as IconData,
-                          color: AppColors.statStrength,
-                          size: 32,
-                        ),
+                        child: Icon(currentExercise['icon'] as IconData, color: AppColors.statStrength, size: 28),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               currentExercise['name'] as String,
-                              style: GoogleFonts.inter(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 18,
-                              ),
+                              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
                             ),
-                            const SizedBox(height: 4),
                             Text(
-                              currentExercise['desc'] as String,
-                              style: GoogleFonts.inter(
-                                color: AppColors.textSecondary,
-                                fontSize: 12,
-                              ),
+                              currentExercise['tip'] as String,
+                              style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11),
                             ),
                           ],
                         ),
@@ -752,109 +1149,886 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
-                // Target reps display
-                Text(
-                  currentExercise['target'] as String,
-                  style: GoogleFonts.inter(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 32,
-                  ),
-                ),
-                Text(
-                  'Hedeflenen Tekrar / Süre',
-                  style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
-                ),
-                const SizedBox(height: 24),
-
-                // Completed sets tracker dots
+                // Set İlerleme Çubukları
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(3, (index) {
-                    final isCompleted = index < _completedSets;
+                  children: List.generate(3, (i) {
+                    final isDone = i < _completedSets;
+                    final isCurrent = i == _completedSets;
                     return Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 6),
-                      width: 48,
+                      margin: const EdgeInsets.symmetric(horizontal: 5),
+                      width: 50,
                       height: 8,
                       decoration: BoxDecoration(
-                        color: isCompleted
+                        color: isDone
                             ? AppColors.statStrength
-                            : AppColors.background,
+                            : (isCurrent ? AppColors.statStrength.withValues(alpha: 0.5) : AppColors.background),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
-                          color: AppColors.statStrength.withValues(alpha: 0.3),
+                          color: isCurrent ? AppColors.statStrength : Colors.transparent,
                         ),
                       ),
                     );
                   }),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
-                // Set Completed Button
+                // Kontrol Butonları (Erken geçiş kaldırıldı, sadece duraklat ve antrenmanı bitir)
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: _toggleHiitPause,
+                        icon: Icon(_isHiitPaused ? Icons.play_arrow_rounded : Icons.pause_rounded),
+                        label: Text(_isHiitPaused ? 'Devam Et' : 'Duraklat'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent.shade100,
+                          side: BorderSide(color: Colors.redAccent.withValues(alpha: 0.3)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        onPressed: _resetHiitWorkout,
+                        icon: const Icon(Icons.close_rounded, size: 20),
+                        label: Text(
+                          'Antrenmanı Bitir',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ]
+
+          // --- DURUM 4: DİNLENME (REST) AŞAMASI (20 SANİYE) ---
+          else if (_hiitState == 'rest') ...[
+            Column(
+              children: [
+                // Durum Rozeti
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.secondary.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.coffee_rounded, color: AppColors.secondary, size: 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        'DİNLENME AŞAMASI • NEFES AL & SU İÇ',
+                        style: GoogleFonts.inter(
+                          color: AppColors.secondary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Dinlenme Sayacı
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 160,
+                      height: 160,
+                      child: CircularProgressIndicator(
+                        value: (_hiitSecondsLeft / _hiitTotalRestSeconds).clamp(0.0, 1.0),
+                        strokeWidth: 8,
+                        backgroundColor: AppColors.background,
+                        valueColor: const AlwaysStoppedAnimation<Color>(AppColors.secondary),
+                        strokeCap: StrokeCap.round,
+                      ),
+                    ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '00:${_hiitSecondsLeft.toString().padLeft(2, '0')}',
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontSize: 36,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          'MOLA',
+                          style: GoogleFonts.inter(
+                            color: AppColors.secondary,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Sonraki Egzersiz Önizleme Kartı
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.secondary.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          exercises[_currentExerciseIndex]['icon'] as IconData,
+                          color: AppColors.secondary,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Sıradaki Set: ${exercises[_currentExerciseIndex]['name']}',
+                              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                            ),
+                            Text(
+                              'Set ${_completedSets + 1}/3 için hazırlanıyorsun...',
+                              style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Molayı Geç Butonu
                 SizedBox(
                   width: double.infinity,
-                  height: 56,
+                  height: 50,
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.statStrength,
-                      elevation: 5,
-                      shadowColor: AppColors.statStrength.withValues(alpha: 0.4),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      backgroundColor: AppColors.secondary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     ),
-                    onPressed: () => _onSetCompleted(uid),
-                    icon: const Icon(Icons.fitness_center_rounded, color: Colors.white),
+                    onPressed: () => _skipHiitRest(uid),
+                    icon: const Icon(Icons.skip_next_rounded),
                     label: Text(
-                      'Set Tamamlandı',
-                      style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      'Molayı Geç ve Başla ➔',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
               ],
+            ),
+          ]
+
+          // --- DURUM 5: TAMAMLANDI EKRANI ---
+          else if (_hiitState == 'finished') ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 20),
+              child: Column(
+                children: [
+                  const Text('🏆', style: TextStyle(fontSize: 60)),
+                  const SizedBox(height: 12),
+                  Text(
+                    'HARİKA İŞ! ANTRENMAN BİTTİ',
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Bugün sınırlarını zorladın ve tüm turları tamamladın!',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Kazanılan Ödüller
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.statStrength.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Column(
+                          children: [
+                            const Text('⚡ +75 XP', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 16)),
+                            const SizedBox(height: 4),
+                            Text('Deneyim', style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11)),
+                          ],
+                        ),
+                        Container(width: 1, height: 30, color: Colors.white12),
+                        Column(
+                          children: [
+                            const Text('💪 +3 GÜÇ', style: TextStyle(color: AppColors.statStrength, fontWeight: FontWeight.bold, fontSize: 16)),
+                            const SizedBox(height: 4),
+                            Text('Stat Gelişimi', style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11)),
+                          ],
+                        ),
+                        Container(width: 1, height: 30, color: Colors.white12),
+                        Column(
+                          children: [
+                            Text(
+                              '⏱️ ${_totalWorkoutSecondsElapsed ~/ 60 + 1} dk',
+                              style: const TextStyle(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            const SizedBox(height: 4),
+                            Text('Antrenman', style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Yeniden Başlat Butonu
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.statStrength,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: _resetHiitWorkout,
+                      icon: const Icon(Icons.replay_rounded),
+                      label: Text(
+                        'Yeni Antrenman Başlat',
+                        style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
-
-          const SizedBox(height: 16),
-          // Exercise navigation
-          if (!_isResting)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton.icon(
-                  onPressed: _currentExerciseIndex > 0
-                      ? () {
-                          setState(() {
-                            _currentExerciseIndex--;
-                            _completedSets = 0;
-                          });
-                        }
-                      : null,
-                  icon: const Icon(Icons.arrow_back, size: 16),
-                  label: const Text('Önceki Egzersiz'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: _currentExerciseIndex > 0 ? AppColors.textSecondary : Colors.transparent,
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: _currentExerciseIndex < 2
-                      ? () {
-                          setState(() {
-                            _currentExerciseIndex++;
-                            _completedSets = 0;
-                          });
-                        }
-                      : null,
-                  icon: const Icon(Icons.arrow_forward, size: 16),
-                  label: const Text('Sonraki Egzersiz'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: _currentExerciseIndex < 2 ? AppColors.textSecondary : Colors.transparent,
-                  ),
-                ),
-              ],
-            ),
         ],
       ),
+    );
+  }
+
+  void _showExerciseSelectionSheet(BuildContext context, int level) {
+    const workSecondsOptions = [20, 30, 40, 45, 60];
+    const restSecondsOptions = [10, 15, 20, 30, 45];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (builderContext, setSheetState) {
+            return Container(
+              height: MediaQuery.of(sheetContext).size.height * 0.85,
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              decoration: const BoxDecoration(
+                color: AppColors.cardBackground,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Antrenman Ayarları & Hareketler',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Süreleri belirle, hareket ekle veya çıkar (${_selectedExerciseKeys.length} seçili)',
+                            style: GoogleFonts.inter(
+                              color: AppColors.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(sheetContext),
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Süre Ayarları Paneli
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.timer_outlined, size: 16, color: AppColors.statStrength),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Çalışma Süresi: ${_hiitTotalWorkSeconds}s',
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: workSecondsOptions.map((sec) {
+                              final isSelected = _hiitTotalWorkSeconds == sec;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  label: Text('${sec}s'),
+                                  selected: isSelected,
+                                  selectedColor: AppColors.statStrength,
+                                  backgroundColor: AppColors.cardBackground,
+                                  labelStyle: GoogleFonts.inter(
+                                    color: isSelected ? Colors.white : AppColors.textSecondary,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    fontSize: 11,
+                                  ),
+                                  onSelected: (val) {
+                                    if (val) {
+                                      setSheetState(() {
+                                        _hiitTotalWorkSeconds = sec;
+                                        if (_hiitState == 'ready') _hiitSecondsLeft = sec;
+                                      });
+                                      setState(() {
+                                        _hiitTotalWorkSeconds = sec;
+                                        if (_hiitState == 'ready') _hiitSecondsLeft = sec;
+                                      });
+                                    }
+                                  },
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            const Icon(Icons.coffee_outlined, size: 16, color: AppColors.secondary),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Mola / Dinlenme Süresi: ${_hiitTotalRestSeconds}s',
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: restSecondsOptions.map((sec) {
+                              final isSelected = _hiitTotalRestSeconds == sec;
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: ChoiceChip(
+                                  label: Text('${sec}s'),
+                                  selected: isSelected,
+                                  selectedColor: AppColors.secondary,
+                                  backgroundColor: AppColors.cardBackground,
+                                  labelStyle: GoogleFonts.inter(
+                                    color: isSelected ? Colors.white : AppColors.textSecondary,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    fontSize: 11,
+                                  ),
+                                  onSelected: (val) {
+                                    if (val) {
+                                      setSheetState(() {
+                                        _hiitTotalRestSeconds = sec;
+                                      });
+                                      setState(() {
+                                        _hiitTotalRestSeconds = sec;
+                                      });
+                                    }
+                                  },
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Hareket Havuzu Başlığı & Yeni Hareket Ekle
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Hareket Havuzu',
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          backgroundColor: AppColors.statStrength.withValues(alpha: 0.15),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () => _showAddCustomExerciseDialog(sheetContext, setSheetState),
+                        icon: const Icon(Icons.add, color: AppColors.statStrength, size: 16),
+                        label: Text(
+                          'Yeni Hareket Ekle',
+                          style: GoogleFonts.inter(
+                            color: AppColors.statStrength,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Egzersiz Listesi
+                  Expanded(
+                    child: ListView.separated(
+                      itemCount: _exerciseCatalog.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (ctx, idx) {
+                        final item = _exerciseCatalog[idx];
+                        final key = item['key'] as String;
+                        final isSelected = _selectedExerciseKeys.contains(key);
+                        final isCustom = key.startsWith('custom_');
+
+                        final calcTarget = item['calcTarget'];
+                        String targetStr = '';
+                        if (calcTarget is Function) {
+                          try {
+                            targetStr = (calcTarget as dynamic)(level).toString();
+                          } catch (_) {
+                            targetStr = '${_hiitTotalWorkSeconds}s Egzersiz';
+                          }
+                        } else {
+                          targetStr = item['target']?.toString() ?? '${_hiitTotalWorkSeconds}s Egzersiz';
+                        }
+
+                        return GestureDetector(
+                          onTap: () {
+                            if (isSelected) {
+                              if (_selectedExerciseKeys.length <= 1) {
+                                ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('En az 1 egzersiz seçili olmalıdır!'),
+                                    duration: Duration(seconds: 1),
+                                  ),
+                                );
+                                return;
+                              }
+                              setSheetState(() {
+                                _selectedExerciseKeys.remove(key);
+                              });
+                            } else {
+                              setSheetState(() {
+                                _selectedExerciseKeys.add(key);
+                              });
+                            }
+                            setState(() {
+                              if (_currentExerciseIndex >= _selectedExerciseKeys.length) {
+                                _currentExerciseIndex = 0;
+                              }
+                            });
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? AppColors.statStrength.withValues(alpha: 0.12)
+                                  : AppColors.background,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isSelected
+                                    ? AppColors.statStrength
+                                    : AppColors.primary.withValues(alpha: 0.1),
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? AppColors.statStrength.withValues(alpha: 0.2)
+                                        : Colors.white10,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    item['icon'] as IconData? ?? Icons.fitness_center_rounded,
+                                    color: isSelected ? AppColors.statStrength : AppColors.textSecondary,
+                                    size: 22,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              item['name'] as String? ?? 'Egzersiz',
+                                              style: GoogleFonts.inter(
+                                                color: isSelected ? Colors.white : AppColors.textSecondary,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ),
+                                          if (isCustom)
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primary.withValues(alpha: 0.2),
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                'Özel',
+                                                style: GoogleFonts.inter(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        targetStr,
+                                        style: GoogleFonts.inter(
+                                          color: isSelected ? AppColors.statStrength : AppColors.textSecondary.withValues(alpha: 0.7),
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      if ((item['desc'] ?? '').toString().isNotEmpty) ...[
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          item['desc'] as String,
+                                          style: GoogleFonts.inter(
+                                            color: AppColors.textSecondary.withValues(alpha: 0.7),
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                if (isCustom)
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 18),
+                                    onPressed: () {
+                                      if (_selectedExerciseKeys.length <= 1 && isSelected) {
+                                        ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                          const SnackBar(
+                                            content: Text('En az 1 egzersiz seçili kalmalıdır!'),
+                                            duration: Duration(seconds: 1),
+                                          ),
+                                        );
+                                        return;
+                                      }
+                                      setSheetState(() {
+                                        _selectedExerciseKeys.remove(key);
+                                        _exerciseCatalog.removeWhere((e) => e['key'] == key);
+                                      });
+                                      setState(() {
+                                        if (_currentExerciseIndex >= _selectedExerciseKeys.length) {
+                                          _currentExerciseIndex = 0;
+                                        }
+                                      });
+                                    },
+                                  ),
+                                Container(
+                                  width: 24,
+                                  height: 24,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: isSelected ? AppColors.statStrength : Colors.transparent,
+                                    border: Border.all(
+                                      color: isSelected ? AppColors.statStrength : Colors.white30,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: isSelected
+                                      ? const Icon(Icons.check, color: Colors.white, size: 16)
+                                      : null,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.statStrength,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: () => Navigator.pop(sheetContext),
+                      child: Text(
+                        'Ayarları & Programı Kaydet (${_selectedExerciseKeys.length} Hareket)',
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showAddCustomExerciseDialog(BuildContext parentContext, StateSetter setSheetState) {
+    final nameController = TextEditingController();
+    final targetController = TextEditingController(text: '15 Tekrar');
+    final tipController = TextEditingController();
+    IconData selectedIcon = Icons.fitness_center_rounded;
+
+    final List<IconData> iconOptions = [
+      Icons.fitness_center_rounded,
+      Icons.flash_on_rounded,
+      Icons.directions_run_rounded,
+      Icons.sports_gymnastics_rounded,
+      Icons.timer_rounded,
+      Icons.self_improvement_rounded,
+      Icons.favorite_rounded,
+      Icons.sports_mma_rounded,
+    ];
+
+    showDialog(
+      context: parentContext,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (dCtx, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.cardBackground,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.statStrength.withValues(alpha: 0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.add_task_rounded, color: AppColors.statStrength, size: 20),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Yeni Hareket Ekle',
+                    style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Hareket Adı', style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: nameController,
+                      style: GoogleFonts.inter(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Örn: Barfiks, Burpee, İp Atlama...',
+                        hintStyle: GoogleFonts.inter(color: AppColors.textSecondary.withValues(alpha: 0.5), fontSize: 13),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text('Hedef / Tekrar / Açıklama', style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: targetController,
+                      style: GoogleFonts.inter(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Örn: 15 Tekrar veya 50 Zıplama',
+                        hintStyle: GoogleFonts.inter(color: AppColors.textSecondary.withValues(alpha: 0.5), fontSize: 13),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text('Koç İpucu (Opsiyonel)', style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12)),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: tipController,
+                      style: GoogleFonts.inter(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Örn: Sırtını dik tut ve ritmini bozma! 💪',
+                        hintStyle: GoogleFonts.inter(color: AppColors.textSecondary.withValues(alpha: 0.5), fontSize: 13),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text('İkon Seç', style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12)),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: iconOptions.map((icon) {
+                        final isSelected = selectedIcon == icon;
+                        return GestureDetector(
+                          onTap: () => setDialogState(() => selectedIcon = icon),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppColors.statStrength.withValues(alpha: 0.25) : AppColors.background,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: isSelected ? AppColors.statStrength : Colors.transparent,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Icon(icon, color: isSelected ? AppColors.statStrength : AppColors.textSecondary, size: 20),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text('İptal', style: GoogleFonts.inter(color: AppColors.textSecondary)),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.statStrength,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () {
+                    final name = nameController.text.trim();
+                    if (name.isEmpty) return;
+                    final target = targetController.text.trim().isNotEmpty ? targetController.text.trim() : 'Maksimum Tekrar';
+                    final tip = tipController.text.trim().isNotEmpty ? tipController.text.trim() : 'Formunu koru ve pes etme! 🔥';
+                    final customKey = 'custom_${DateTime.now().millisecondsSinceEpoch}';
+
+                    final newExercise = {
+                      'key': customKey,
+                      'name': name,
+                      'desc': 'Özel Antrenman Hareketi',
+                      'icon': selectedIcon,
+                      'tip': tip,
+                      'calcTarget': (int level) => '$target / ${_hiitTotalWorkSeconds}s',
+                    };
+
+                    setState(() {
+                      _exerciseCatalog.add(newExercise);
+                      _selectedExerciseKeys.add(customKey);
+                    });
+                    setSheetState(() {});
+
+                    Navigator.pop(dialogContext);
+                    ScaffoldMessenger.of(parentContext).showSnackBar(
+                      SnackBar(
+                        content: Text('🔥 "$name" hareketi başarıyla eklendi ve seçildi!'),
+                        backgroundColor: AppColors.statStrength,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  child: Text('Ekle', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
