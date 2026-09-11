@@ -4,7 +4,7 @@ import '../../dashboard/presentation/dashboard_screen.dart';
 import '../../quests/presentation/quests_screen.dart';
 import '../../character/presentation/character_screen.dart';
 import '../../pomodoro/presentation/pomodoro_screen.dart';
-import '../../stats/presentation/stats_screen.dart';
+import '../../leaderboard/presentation/leaderboard_screen.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../quests/providers/quest_provider.dart';
 import '../../achievements/providers/achievement_provider.dart';
@@ -27,7 +27,7 @@ class _MainShellState extends ConsumerState<MainShell> {
     DashboardScreen(),
     QuestsScreen(),
     PomodoroScreen(),
-    StatsScreen(),
+    LeaderboardScreen(),
     CharacterScreen(),
   ];
 
@@ -172,8 +172,8 @@ class _MainShellState extends ConsumerState<MainShell> {
             children: [
               _buildNavItem(0, Icons.dashboard_rounded, 'Ana Sayfa', currentIndex),
               _buildNavItem(1, Icons.assignment_rounded, 'Görevler', currentIndex, badgeCount: badgeCount),
-              _buildNavItem(2, Icons.timer_rounded, 'Pomodoro', currentIndex),
-              _buildNavItem(3, Icons.bar_chart_rounded, 'İstatistik', currentIndex),
+              _buildNavItem(2, Icons.timer_rounded, 'Odak', currentIndex),
+              _buildNavItem(3, Icons.emoji_events_rounded, 'Lig & Kulüp', currentIndex),
               _buildNavItem(4, Icons.person_rounded, 'Karakter', currentIndex),
             ],
           ),

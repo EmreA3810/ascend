@@ -5,10 +5,14 @@ import '../data/loot_pool.dart';
 class CharacterAvatar extends StatefulWidget {
   final Map<String, String> equippedItems;
   final double size;
+  final double? width;
+  final double? height;
   const CharacterAvatar({
     super.key,
     required this.equippedItems,
     this.size = 150,
+    this.width,
+    this.height,
   });
 
   @override
@@ -35,14 +39,16 @@ class _CharacterAvatarState extends State<CharacterAvatar> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
+    final w = widget.width ?? widget.size;
+    final h = widget.height ?? widget.size;
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         return SizedBox(
-          width: widget.size,
-          height: widget.size,
+          width: w,
+          height: h,
           child: CustomPaint(
-            size: Size(widget.size, widget.size),
+            size: Size(w, h),
             painter: CharacterPainter(
               equippedItems: widget.equippedItems,
               animationValue: _controller.value,
@@ -65,7 +71,12 @@ class CharacterPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
+    canvas.save();
+    // Auto-scale to ensure head, hats, body, legs, boots and shadow are completely visible
+    final scale = min(size.width / 58.0, size.height / 116.0);
+    canvas.translate(size.width / 2, size.height / 2);
+    canvas.scale(scale);
+    const center = Offset(0, 3.0);
     
     // Nefes alma animasyonu hesabı (Sinüs dalgası: -2.0 ile +2.0 piksel)
     final breath = sin(animationValue * 2 * pi) * 1.5;
@@ -528,6 +539,7 @@ class CharacterPainter extends CustomPainter {
         canvas.drawLine(Offset(center.dx - 12, headY - 2), Offset(center.dx + 12, headY - 2), glowPaint);
       }
     }
+    canvas.restore();
   }
 
   @override

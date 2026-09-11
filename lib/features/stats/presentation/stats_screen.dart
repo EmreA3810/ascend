@@ -11,7 +11,8 @@ import '../../pomodoro/providers/pomodoro_provider.dart';
 import '../../pomodoro/data/pomodoro_session_model.dart';
 
 class StatsScreen extends ConsumerWidget {
-  const StatsScreen({super.key});
+  final bool showAppBar;
+  const StatsScreen({super.key, this.showAppBar = true});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -21,14 +22,16 @@ class StatsScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        title: Text(
-          'İstatistikler',
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white),
-        ),
-      ),
+      appBar: showAppBar
+          ? AppBar(
+              backgroundColor: AppColors.background,
+              elevation: 0,
+              title: Text(
+                'İstatistikler',
+                style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+            )
+          : null,
       body: userAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
         error: (e, _) => Center(child: Text('Hata: $e', style: GoogleFonts.inter(color: AppColors.error))),

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -11,6 +12,7 @@ import '../providers/pomodoro_provider.dart';
 import '../../user/providers/user_provider.dart';
 import 'session_history_sheet.dart';
 import '../../quests/providers/quest_provider.dart';
+import '../../../core/utils/sound_effects.dart';
 
 class PomodoroScreen extends ConsumerStatefulWidget {
   const PomodoroScreen({super.key});
@@ -19,7 +21,7 @@ class PomodoroScreen extends ConsumerStatefulWidget {
   ConsumerState<PomodoroScreen> createState() => _PomodoroScreenState();
 }
 
-class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProviderStateMixin {
+class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProviderStateMixin, WidgetsBindingObserver {
   int _selectedWorkDuration = 25; // in minutes
   int _selectedBreakDuration = 5; // in minutes
 
@@ -27,6 +29,11 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
   bool _isRunning = false;
   bool _isBreak = false;
   Timer? _timer;
+
+  // Derin Odak Modu (Katı Mod - Forest Modeli)
+  bool _isDeepFocusMode = true;
+  bool _hasViolatedDeepFocus = false;
+  int _deepFocusViolations = 0;
 
   String _selectedFocusArea = 'academic'; // 'academic', 'fitness', 'reading', 'coding'
 
@@ -170,22 +177,30 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
   bool _isMusicPlaying = false;
   StreamSubscription? _playerSubscription;
 
-  final List<Map<String, String>> _playlist = const [
+  final List<Map<String, dynamic>> _playlist = const [
     {
       'name': 'Soft Lofi Beats ☕',
-      'url': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3'
+      'desc': 'Sakin Rhodes ve Piyano Akorları',
+      'icon': Icons.coffee_rounded,
+      'type': 'synth_lofi',
     },
     {
-      'name': 'Chill Ambient Rain 🌧️',
-      'url': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3'
+      'name': 'Huzurlu Yağmur Sesi 🌧️',
+      'desc': 'Doğal Yağmur & Pembe Gürültü',
+      'icon': Icons.water_drop_rounded,
+      'type': 'synth_rain',
     },
     {
-      'name': 'Focus Forest Sound 🌲',
-      'url': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3'
+      'name': 'Zen Meditasyon (432Hz) 🧘',
+      'desc': 'Tibet Kasesi & Derin Odak',
+      'icon': Icons.self_improvement_rounded,
+      'type': 'synth_zen',
     },
     {
-      'name': 'Deep Synth Meditation 🧘',
-      'url': 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3'
+      'name': 'Çam Ormanı Esintisi 🌲',
+      'desc': 'Yumuşak Rüzgar Uğultusu',
+      'icon': Icons.forest_rounded,
+      'type': 'synth_breeze',
     },
   ];
 
@@ -208,6 +223,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _secondsLeft = _selectedWorkDuration * 60;
     
     _pulseController = AnimationController(
@@ -226,6 +242,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _hiitTimer?.cancel();
     _pulseController.dispose();
@@ -242,6 +259,53 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     _codingTaskController.dispose();
     _codingNoteController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_isRunning && _isDeepFocusMode && !_isBreak && _selectedFocusArea != 'fitness') {
+      if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+        _hasViolatedDeepFocus = true;
+        _deepFocusViolations++;
+      } else if (state == AppLifecycleState.resumed && _hasViolatedDeepFocus) {
+        _showDeepFocusViolationWarning();
+      }
+    }
+  }
+
+  void _showDeepFocusViolationWarning() {
+    if (!mounted) return;
+    SoundEffects.playError();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        backgroundColor: Colors.red.shade900,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.amberAccent, size: 24),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '⚠️ Odaktan Ayrıldın!',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
+                  ),
+                  Text(
+                    'Katı modda başka uygulamaya geçmek odak büyüsünü zedeler! Kusursuz bonusu kaybettin.',
+                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   void _updateOverlay() {
@@ -283,6 +347,8 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
         _isRunning = false;
       });
     } else {
+      _hasViolatedDeepFocus = false;
+      _deepFocusViolations = 0;
       _updateState(() {
         _isRunning = true;
       });
@@ -305,7 +371,19 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
       // Focus session ended
       final ended = DateTime.now();
       final started = ended.subtract(Duration(minutes: _selectedWorkDuration));
-      final xpEarned = _selectedWorkDuration * 2;
+      
+      int multiplier = 2;
+      bool isBonus = false;
+      if (_isDeepFocusMode && _deepFocusViolations == 0) {
+        multiplier = 3; // Kusursuz Katı Odak bonusu (+%50 XP!)
+        isBonus = true;
+      }
+      final xpEarned = _selectedWorkDuration * multiplier;
+
+      // Okuma ve fitness değilse mikro-sorumluluk / seans özeti dialogunu aç
+      if (_selectedFocusArea != 'reading' && _selectedFocusArea != 'fitness') {
+        await _showSessionReflectionDialog(uid, xpEarned, isBonus);
+      }
 
       final session = PomodoroSessionModel(
         id: '',
@@ -508,6 +586,202 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     }
   }
 
+  Future<void> _showSessionReflectionDialog(String uid, int xpEarned, bool isBonus) async {
+    final noteCtrl = TextEditingController();
+    final quickTags = ['Matematik 📐', 'Fizik ⚡', 'Soru Çözümü 📝', 'Kitap 📖', 'Kodlama 💻', 'Yabancı Dil 🌍', 'Ödev 📚'];
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.cardBackground,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: isBonus ? AppColors.gold : AppColors.primary.withValues(alpha: 0.3)),
+              ),
+              title: Row(
+                children: [
+                  Text(isBonus ? '🏆' : '🎉', style: const TextStyle(fontSize: 24)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Odak Tamamlandı!',
+                          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                        ),
+                        Text(
+                          isBonus ? '⚡ +$xpEarned XP (Kusursuz Katı Odak Bonusu!)' : '⚡ +$xpEarned XP Kazanıldı',
+                          style: GoogleFonts.inter(
+                            color: isBonus ? AppColors.gold : AppColors.secondary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bu seansta neler başardın? Kısa bir not düşerek disiplinini belgele:',
+                      style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: quickTags.map((tag) {
+                        return ActionChip(
+                          backgroundColor: Colors.white10,
+                          label: Text(tag, style: GoogleFonts.inter(color: Colors.white70, fontSize: 11)),
+                          onPressed: () {
+                            setDialogState(() {
+                              if (noteCtrl.text.isEmpty) {
+                                noteCtrl.text = tag;
+                              } else {
+                                noteCtrl.text += ', $tag';
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: noteCtrl,
+                      style: GoogleFonts.inter(color: Colors.white),
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        hintText: 'Örn: 30 Soru çözüldü veya konu özeti çıkarıldı...',
+                        hintStyle: GoogleFonts.inter(color: Colors.white30, fontSize: 12),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isBonus ? AppColors.gold : AppColors.primary,
+                    foregroundColor: isBonus ? Colors.black : Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  ),
+                  onPressed: () {
+                    SoundEffects.playVictory();
+                    Navigator.pop(ctx);
+                  },
+                  child: Text(
+                    'Ödülü Al & Devam Et ✨',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDeepFocusToggle() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: _isDeepFocusMode
+              ? [AppColors.gold.withValues(alpha: 0.18), AppColors.cardBackground]
+              : [Colors.white10, AppColors.cardBackground],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _isDeepFocusMode ? AppColors.gold.withValues(alpha: 0.4) : Colors.white12,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: _isDeepFocusMode ? AppColors.gold.withValues(alpha: 0.2) : Colors.white10,
+            ),
+            child: Icon(
+              Icons.security_rounded,
+              color: _isDeepFocusMode ? AppColors.gold : Colors.white38,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      '🛡️ Derin Odak (Katı Mod)',
+                      style: GoogleFonts.inter(
+                        color: _isDeepFocusMode ? Colors.white : Colors.white70,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: AppColors.gold.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '+%50 Bonus XP',
+                        style: GoogleFonts.inter(color: AppColors.gold, fontWeight: FontWeight.w800, fontSize: 10),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _isDeepFocusMode
+                      ? 'Uygulamadan ayrılırsan odak bozulur! Kusursuz bitirirsen bonus XP kazanırsın.'
+                      : 'Rahat mod: Uygulamadan ayrılsan da süre işlemeye devam eder.',
+                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: _isDeepFocusMode,
+            activeThumbColor: AppColors.gold,
+            activeTrackColor: AppColors.gold.withValues(alpha: 0.4),
+            onChanged: _isRunning
+                ? null
+                : (val) {
+                    setState(() {
+                      _isDeepFocusMode = val;
+                    });
+                  },
+          ),
+        ],
+      ),
+    );
+  }
+
   void _startHiitWorkout(String uid) {
     _hiitTimer?.cancel();
     setState(() {
@@ -522,6 +796,8 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     _hiitTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_isHiitPaused) return;
 
+      SoundEffects.playTick();
+
       if (_hiitCountdownSeconds > 1) {
         setState(() {
           _hiitCountdownSeconds--;
@@ -535,6 +811,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
   void _startHiitWorkPhase(String uid) {
     _hiitTimer?.cancel();
+    SoundEffects.playWorkStart();
     setState(() {
       _hiitState = 'work';
       _hiitSecondsLeft = _hiitTotalWorkSeconds;
@@ -615,6 +892,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
   void _startHiitRestPhase(String uid) {
     _hiitTimer?.cancel();
+    SoundEffects.playRestStart();
     setState(() {
       _hiitState = 'rest';
       _hiitSecondsLeft = _hiitTotalRestSeconds;
@@ -658,20 +936,27 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
   Future<void> _onHiitWorkoutFinished(String uid) async {
     _hiitTimer?.cancel();
+    SoundEffects.playVictory();
+
     setState(() {
       _hiitState = 'finished';
     });
 
-    final totalMinutes = (_totalWorkoutSecondsElapsed / 60).ceil().clamp(5, 45);
+    final totalSecs = _totalWorkoutSecondsElapsed;
+    final totalMinutes = (totalSecs / 60.0).clamp(0.5, 90.0);
+    final totalSetsDone = _selectedExerciseKeys.length * 3;
+    final xpEarned = ((totalMinutes * 16) + (totalSetsDone * 7)).round().clamp(40, 250);
+    final estimatedCalories = (totalMinutes * 8.5).round().clamp(15, 600);
+    final strengthGain = totalSetsDone >= 6 ? 4 : 2;
+
     final ended = DateTime.now();
-    final started = ended.subtract(Duration(minutes: totalMinutes));
-    const xpEarned = 75;
+    final started = ended.subtract(Duration(seconds: totalSecs > 0 ? totalSecs : 60));
 
     final session = PomodoroSessionModel(
       id: '',
       startedAt: started,
       endedAt: ended,
-      workMinutes: totalMinutes,
+      workMinutes: totalMinutes.ceil().clamp(1, 60),
       breakMinutes: 5,
       xpEarned: xpEarned,
       completed: true,
@@ -679,11 +964,240 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
     await ref.read(pomodoroRepositoryProvider).saveSession(uid, session);
     await ref.read(userRepositoryProvider).addXp(uid, xpEarned);
-    await ref.read(userRepositoryProvider).boostStat(uid, 'strength', 3);
+    await ref.read(userRepositoryProvider).boostStat(uid, 'strength', strengthGain);
 
     if (mounted) {
-      XpGainPopup.show(context, xp: xpEarned, statName: 'strength', statAmount: 3);
+      _showWorkoutSummaryDialog(
+        totalSeconds: totalSecs,
+        totalSets: totalSetsDone,
+        exerciseCount: _selectedExerciseKeys.length,
+        xpEarned: xpEarned,
+        strengthGain: strengthGain,
+        estimatedCalories: estimatedCalories,
+      );
     }
+  }
+
+  void _showWorkoutSummaryDialog({
+    required int totalSeconds,
+    required int totalSets,
+    required int exerciseCount,
+    required int xpEarned,
+    required int strengthGain,
+    required int estimatedCalories,
+  }) {
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    final timeStr = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: AppColors.cardBackground,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: AppColors.statStrength.withValues(alpha: 0.6), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.statStrength.withValues(alpha: 0.3),
+                  blurRadius: 30,
+                  spreadRadius: 4,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [AppColors.statStrength, Colors.orangeAccent],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.statStrength.withValues(alpha: 0.5),
+                        blurRadius: 18,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.emoji_events_rounded, color: Colors.white, size: 40),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'ANTRENMAN TAMAMLANDI!',
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 18,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Harika bir disiplin gösterdin! İşte sonuçların:',
+                  style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSummaryMetric(
+                        icon: Icons.timer_outlined,
+                        label: 'Süre',
+                        value: timeStr,
+                        color: AppColors.secondary,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildSummaryMetric(
+                        icon: Icons.repeat_rounded,
+                        label: 'Setler',
+                        value: '$totalSets Set',
+                        color: AppColors.statStrength,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildSummaryMetric(
+                        icon: Icons.local_fire_department_rounded,
+                        label: 'Kalori',
+                        value: '~$estimatedCalories kcal',
+                        color: Colors.deepOrangeAccent,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _buildSummaryMetric(
+                        icon: Icons.fitness_center_rounded,
+                        label: 'Egzersiz',
+                        value: '$exerciseCount Hareket',
+                        color: AppColors.statEnergy,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.stars_rounded, color: AppColors.gold, size: 22),
+                          const SizedBox(width: 6),
+                          Text(
+                            '+$xpEarned XP & Altın',
+                            style: GoogleFonts.inter(
+                              color: AppColors.gold,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(width: 1, height: 24, color: Colors.white12),
+                      Row(
+                        children: [
+                          const Icon(Icons.fitness_center_rounded, color: AppColors.statStrength, size: 20),
+                          const SizedBox(width: 6),
+                          Text(
+                            '+$strengthGain GÜÇ',
+                            style: GoogleFonts.inter(
+                              color: AppColors.statStrength,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 22),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(dialogCtx);
+                      _resetHiitWorkout();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.statStrength,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 4,
+                    ),
+                    child: Text(
+                      'Harika İştin! 🚀',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSummaryMetric({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 14),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildFocusAreaSelector() {
@@ -810,24 +1324,45 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
                   ),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.statStrength.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  _hiitState == 'ready'
-                      ? '${exercises.length} Egzersiz • 3 Set'
-                      : (_hiitState == 'finished'
-                          ? 'Tamamlandı 🏆'
-                          : 'Egzersiz ${_currentExerciseIndex + 1}/${exercises.length} • Set ${_completedSets + 1}/3'),
-                  style: GoogleFonts.inter(
-                    color: AppColors.statStrength,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      SoundEffects.isMuted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                      color: SoundEffects.isMuted ? Colors.white38 : AppColors.statStrength,
+                      size: 20,
+                    ),
+                    tooltip: SoundEffects.isMuted ? 'Sesi Aç' : 'Sesi Kapat',
+                    onPressed: () {
+                      setState(() {
+                        SoundEffects.toggleMute();
+                      });
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                   ),
-                ),
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.statStrength.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _hiitState == 'ready'
+                          ? '${exercises.length} Egzersiz • 3 Set'
+                          : (_hiitState == 'finished'
+                              ? 'Tamamlandı 🏆'
+                              : 'Egzersiz ${_currentExerciseIndex + 1}/${exercises.length} • Set ${_completedSets + 1}/3'),
+                      style: GoogleFonts.inter(
+                        color: AppColors.statStrength,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -2052,11 +2587,42 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
   // Audio actions
   Future<void> _playCurrentTrack() async {
     final track = _playlist[_currentTrackIndex];
-    await _player.play(UrlSource(track['url']!));
-    await _player.setVolume(_volume);
+    try {
+      await _player.stop();
+      await _player.setReleaseMode(ReleaseMode.loop);
+      await _player.setVolume(_volume);
+
+      final type = track['type'] as String?;
+      Uint8List bytes;
+      if (type == 'synth_rain') {
+        bytes = SoundEffects.getRainWav();
+      } else if (type == 'synth_zen') {
+        bytes = SoundEffects.getZenMeditationWav();
+      } else if (type == 'synth_breeze') {
+        bytes = SoundEffects.getForestBreezeWav();
+      } else {
+        bytes = SoundEffects.getLofiBeatsWav();
+      }
+
+      await _player.play(BytesSource(bytes));
+      _updateState(() {
+        _isMusicPlaying = true;
+      });
+    } catch (_) {
+      try {
+        await _player.play(BytesSource(SoundEffects.getLofiBeatsWav()));
+        _updateState(() {
+          _isMusicPlaying = true;
+        });
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _selectTrack(int index) async {
     _updateState(() {
-      _isMusicPlaying = true;
+      _currentTrackIndex = index;
     });
+    await _playCurrentTrack();
   }
 
   Future<void> _pauseMusic() async {
@@ -2746,6 +3312,8 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
             _buildFocusAreaSelector(),
             const SizedBox(height: 12),
 
+            if (_selectedFocusArea != 'fitness') _buildDeepFocusToggle(),
+
             if (_selectedFocusArea == 'fitness') ...[
               _buildWorkoutAssistant(user.uid, user.level),
             ] else ...[
@@ -2961,43 +3529,122 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
             // Music Controls Card
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: AppColors.cardBackground,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.secondary.withValues(alpha: 0.1)),
+                border: Border.all(color: AppColors.secondary.withValues(alpha: 0.15)),
               ),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Müzik Çalar',
-                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                      Row(
+                        children: [
+                          Icon(
+                            _playlist[_currentTrackIndex]['icon'] as IconData? ?? Icons.music_note_rounded,
+                            color: _isMusicPlaying ? AppColors.secondary : AppColors.textSecondary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _playlist[_currentTrackIndex]['name'] as String,
+                                style: GoogleFonts.inter(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              Text(
+                                _isMusicPlaying ? 'Çalıyor (Kesintisiz Döngü)' : 'Duraklatıldı',
+                                style: GoogleFonts.inter(
+                                  color: _isMusicPlaying ? AppColors.secondary : AppColors.textSecondary,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                       Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.skip_previous_rounded, color: Colors.white, size: 20),
+                            icon: const Icon(Icons.skip_previous_rounded, color: Colors.white, size: 22),
                             onPressed: _prevTrack,
+                            tooltip: 'Önceki Parça',
                           ),
                           IconButton(
                             icon: Icon(
                               _isMusicPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
                               color: AppColors.secondary,
-                              size: 28,
+                              size: 32,
                             ),
                             onPressed: _toggleMusic,
+                            tooltip: _isMusicPlaying ? 'Durdur' : 'Çal',
                           ),
                           IconButton(
-                            icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 20),
+                            icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 22),
                             onPressed: _nextTrack,
+                            tooltip: 'Sonraki Parça',
                           ),
                         ],
-                      )
+                      ),
                     ],
                   ),
+                  const SizedBox(height: 10),
+                  // Ambient Track Selector Chips
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: List.generate(_playlist.length, (i) {
+                        final track = _playlist[i];
+                        final isSel = _currentTrackIndex == i;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 6.0),
+                          child: InkWell(
+                            onTap: () => _selectTrack(i),
+                            borderRadius: BorderRadius.circular(10),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: isSel ? AppColors.secondary.withValues(alpha: 0.2) : AppColors.background,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: isSel ? AppColors.secondary : Colors.white10,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    track['icon'] as IconData? ?? Icons.music_note,
+                                    size: 14,
+                                    color: isSel ? AppColors.secondary : AppColors.textSecondary,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    track['name'] as String,
+                                    style: GoogleFonts.inter(
+                                      color: isSel ? Colors.white : AppColors.textSecondary,
+                                      fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
                   Row(
                     children: [
                       const Icon(Icons.volume_down_rounded, color: AppColors.textSecondary, size: 16),
@@ -3013,7 +3660,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
                       ),
                       const Icon(Icons.volume_up_rounded, color: AppColors.textSecondary, size: 16),
                     ],
-                  )
+                  ),
                 ],
               ),
             ),

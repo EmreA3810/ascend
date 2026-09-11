@@ -12,6 +12,7 @@ import '../../quests/providers/quest_provider.dart';
 import '../../quests/data/quest_model.dart';
 import '../../pomodoro/providers/pomodoro_provider.dart';
 import 'package:fl_chart/fl_chart.dart';
+import '../../stats/presentation/stats_screen.dart';
 import 'character_painter.dart';
 import 'wardrobe_screen.dart';
 
@@ -34,20 +35,35 @@ class CharacterScreen extends ConsumerWidget {
     final dailyQuestsAsync = ref.watch(dailyQuestsProvider);
     final todaySessionsAsync = ref.watch(todaySessionsProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
         backgroundColor: AppColors.background,
-        elevation: 0,
-        title: Text(
-          'Karakter Profil',
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white),
+        appBar: AppBar(
+          backgroundColor: AppColors.background,
+          elevation: 0,
+          title: Text(
+            'Karakter & Gelişim',
+            style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white),
+          ),
+          bottom: TabBar(
+            indicatorColor: AppColors.primary,
+            indicatorWeight: 3,
+            labelColor: AppColors.primary,
+            unselectedLabelColor: Colors.white54,
+            labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
+            tabs: const [
+              Tab(icon: Icon(Icons.shield_outlined, size: 18), text: 'Karakter & Gardırop'),
+              Tab(icon: Icon(Icons.bar_chart_rounded, size: 18), text: 'İstatistik & Grafikler'),
+            ],
+          ),
         ),
-      ),
-      body: userAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-        error: (err, stack) => Center(child: Text('Hata: $err', style: GoogleFonts.inter(color: AppColors.error))),
-        data: (user) {
+        body: TabBarView(
+          children: [
+            userAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+              error: (err, stack) => Center(child: Text('Hata: $err', style: GoogleFonts.inter(color: AppColors.error))),
+              data: (user) {
           if (user == null) {
             return const Center(child: CircularProgressIndicator(color: AppColors.primary));
           }
@@ -100,7 +116,11 @@ class CharacterScreen extends ConsumerWidget {
           );
         },
       ),
-    );
+      const StatsScreen(showAppBar: false),
+    ],
+  ),
+),
+);
   }
 
   Widget _revealSection({required Widget child, required int order}) {
@@ -110,7 +130,7 @@ class CharacterScreen extends ConsumerWidget {
       curve: Curves.easeOutBack,
       builder: (context, value, sectionChild) {
         return Opacity(
-          opacity: value,
+          opacity: value.clamp(0.0, 1.0),
           child: Transform.translate(
             offset: Offset(0, 32 * (1 - value)),
             child: Transform.scale(
@@ -552,8 +572,7 @@ class CharacterScreen extends ConsumerWidget {
 
   Widget _buildStatsSection(UserModel user) {
     final str = (user.stats['strength'] ?? 0).toDouble();
-    final intelligence = (user.stats['intelligence'] ?? 0).toDouble();
-    final endurance = (user.stats['endurance'] ?? 0).toDouble();
+    final energy = (user.stats['energy'] ?? 0).toDouble();
     final focus = (user.stats['focus'] ?? 0).toDouble();
     final knowledge = (user.stats['knowledge'] ?? 0).toDouble();
 
@@ -561,10 +580,30 @@ class CharacterScreen extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Icon(Icons.auto_awesome, color: AppColors.secondary, size: 20),
-            const SizedBox(width: 8),
-            Text('Core Attributes', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            Row(
+              children: [
+                const Icon(Icons.auto_awesome, color: AppColors.secondary, size: 20),
+                const SizedBox(width: 8),
+                Text('Karakter Nitelikleri', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+              ],
+            ),
+            if (user.statPoints > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(colors: [AppColors.gold, Colors.deepOrangeAccent]),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(color: AppColors.gold.withValues(alpha: 0.4), blurRadius: 6),
+                  ],
+                ),
+                child: Text(
+                  '⚡ ${user.statPoints} Boş Puan',
+                  style: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w800, fontSize: 11),
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 16),
@@ -577,7 +616,7 @@ class CharacterScreen extends ConsumerWidget {
           ),
           child: Column(
             children: [
-              // Radar Chart (Pentagon)
+              // Radar Chart (4 Core Attributes)
               SizedBox(
                 height: 180,
                 child: RadarChart(
@@ -589,8 +628,7 @@ class CharacterScreen extends ConsumerWidget {
                         entryRadius: 3,
                         dataEntries: [
                           RadarEntry(value: str),
-                          RadarEntry(value: intelligence),
-                          RadarEntry(value: endurance),
+                          RadarEntry(value: energy),
                           RadarEntry(value: focus),
                           RadarEntry(value: knowledge),
                         ],
@@ -601,10 +639,9 @@ class CharacterScreen extends ConsumerWidget {
                     getTitle: (index, angle) {
                       switch (index) {
                         case 0: return const RadarChartTitle(text: 'STR');
-                        case 1: return const RadarChartTitle(text: 'INT');
-                        case 2: return const RadarChartTitle(text: 'END');
-                        case 3: return const RadarChartTitle(text: 'FOC');
-                        case 4: return const RadarChartTitle(text: 'KNW');
+                        case 1: return const RadarChartTitle(text: 'ENG');
+                        case 2: return const RadarChartTitle(text: 'FOC');
+                        case 3: return const RadarChartTitle(text: 'KNW');
                         default: return const RadarChartTitle(text: '');
                       }
                     },
@@ -616,20 +653,19 @@ class CharacterScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              // Grid details
+              // Grid details (4 Core RPG Stats)
               GridView.count(
-                crossAxisCount: 5,
+                crossAxisCount: 4,
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                childAspectRatio: 1.1,
+                childAspectRatio: 0.95,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 8,
                 children: [
-                  _buildRPGStatCard('STR', user.stats['strength'] ?? 0, const Color(0xFFFF6B6B)),
-                  _buildRPGStatCard('INT', user.stats['intelligence'] ?? 0, const Color(0xFF4ECDC4)),
-                  _buildRPGStatCard('END', user.stats['endurance'] ?? 0, const Color(0xFFFFD93D)),
-                  _buildRPGStatCard('FOC', user.stats['focus'] ?? 0, const Color(0xFF6BCB77)),
-                  _buildRPGStatCard('KNW', user.stats['knowledge'] ?? 0, const Color(0xFF9D84B7)),
+                  _buildRPGStatCard('STR', user.stats['strength'] ?? 0, AppColors.statStrength, 'Güç'),
+                  _buildRPGStatCard('ENG', user.stats['energy'] ?? 0, AppColors.statEnergy, 'Enerji'),
+                  _buildRPGStatCard('FOC', user.stats['focus'] ?? 0, AppColors.statFocus, 'Odak'),
+                  _buildRPGStatCard('KNW', user.stats['knowledge'] ?? 0, AppColors.statKnowledge, 'Bilgi'),
                 ],
               ),
             ],
@@ -639,7 +675,7 @@ class CharacterScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildRPGStatCard(String name, int value, Color color) {
+  Widget _buildRPGStatCard(String name, int value, Color color, [String? label]) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -675,12 +711,20 @@ class CharacterScreen extends ConsumerWidget {
         Text(
           name,
           style: GoogleFonts.inter(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
             color: color,
             letterSpacing: 0.5,
           ),
         ),
+        if (label != null)
+          Text(
+            label,
+            style: GoogleFonts.inter(
+              fontSize: 10,
+              color: Colors.white54,
+            ),
+          ),
       ],
     );
   }

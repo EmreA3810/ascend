@@ -14,8 +14,14 @@ import '../../pomodoro/providers/pomodoro_provider.dart';
 import '../../shell/providers/shell_provider.dart';
 import '../../quests/presentation/add_quest_sheet.dart';
 import '../../character/presentation/wardrobe_screen.dart';
+import '../../character/presentation/character_painter.dart';
+import '../../../core/utils/sound_effects.dart';
 import '../../../core/widgets/weekly_report_dialog.dart';
 import '../../../core/services/notification_service.dart';
+import '../../shop/presentation/shop_screen.dart';
+import '../../shop/data/companion_data.dart';
+import '../../shop/presentation/companion_widget.dart';
+import '../../leaderboard/presentation/leaderboard_screen.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -79,8 +85,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         curve: const Interval(0.25, 0.8, curve: Curves.easeOutCubic),
       ),
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       NotificationService.checkDailyReminder(context, ref);
+      final u = ref.read(currentUserProvider).value;
+      if (u != null) {
+        final protected = await ref.read(userRepositoryProvider).checkAndValidateStreak(u.uid);
+        if (protected && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: Colors.blueAccent,
+              content: Text('🛡️ Streak Kalkanı devreye girdi ve serini korudu!', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+            ),
+          );
+        }
+      }
     });
   }
 
@@ -216,6 +234,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 const SizedBox(height: 20),
                 _buildQuickActionsSection(context, user),
                 const SizedBox(height: 20),
+                _buildWeeklyLeagueCard(context, user),
+                const SizedBox(height: 20),
                 
                 // Character Stats Panel (Using GlassmorphicCard and AnimatedStatBars)
                 ScaleTransition(
@@ -271,20 +291,50 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         ),
       ),
       actions: [
-        Container(
-          margin: const EdgeInsets.only(right: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: AppColors.primary.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+        // Streak Badge (Tappable for info & shields)
+        GestureDetector(
+          onTap: () => _showStreakShieldModal(context, user),
+          child: Container(
+            margin: const EdgeInsets.only(right: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
+                const SizedBox(width: 4),
+                Text('${user.streak} Gün', style: GoogleFonts.inter(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13)),
+                if (user.streakShields > 0) ...[
+                  const SizedBox(width: 4),
+                  const Icon(Icons.shield, color: Colors.cyanAccent, size: 13),
+                ],
+              ],
+            ),
           ),
-          child: Row(
-            children: [
-              const Icon(Icons.local_fire_department, color: Colors.orange, size: 16),
-              const SizedBox(width: 4),
-              Text('${user.streak} Gün', style: GoogleFonts.inter(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13)),
-            ],
+        ),
+        // Shop / Gold Button
+        GestureDetector(
+          onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopScreen()));
+          },
+          child: Container(
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.amber.withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.storefront_rounded, color: Colors.amber, size: 16),
+                const SizedBox(width: 4),
+                Text('${user.gold}', style: GoogleFonts.inter(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13)),
+              ],
+            ),
           ),
         ),
         PopupMenuButton<String>(
@@ -319,29 +369,83 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         children: [
           Row(
             children: [
-              Container(
-                width: 60, height: 60,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: const LinearGradient(colors: [AppColors.primary, AppColors.secondary]),
-                  boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.5), blurRadius: 12, spreadRadius: 2)],
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const WardrobeScreen()),
+                  );
+                },
+                child: Tooltip(
+                  message: 'Karakter & Gardırop (Giyin)',
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      SizedBox(
+                        width: 50,
+                        height: 70,
+                        child: CharacterAvatar(
+                          equippedItems: user.equippedItems,
+                          width: 50,
+                          height: 70,
+                        ),
+                      ),
+                      if (user.equippedCompanion != null && CompanionData.getById(user.equippedCompanion) != null)
+                        Positioned(
+                          right: -10,
+                          bottom: 0,
+                          child: CompanionWidget(
+                            companion: CompanionData.getById(user.equippedCompanion)!,
+                            size: 26,
+                            showNameTag: false,
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
-                child: const Icon(Icons.person, color: Colors.white, size: 32),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.secondary.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.4)),
-                      ),
-                      child: Text('LVL ${user.level} · ${user.title}',
-                          style: GoogleFonts.inter(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 12)),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.secondary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.secondary.withValues(alpha: 0.4)),
+                          ),
+                          child: Text('LVL ${user.level} · ${user.title}',
+                              style: GoogleFonts.inter(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                        const Spacer(),
+                        InkWell(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const WardrobeScreen()),
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.checkroom_rounded, color: AppColors.secondary, size: 15),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Gardırop',
+                                  style: GoogleFonts.inter(color: AppColors.secondary, fontSize: 11, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 6),
                     Text(user.displayName,
@@ -394,22 +498,122 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   Widget _buildStatsPanel(UserModel user) {
+    final availablePoints = user.statPoints;
+    final totalStats = (user.stats['focus'] ?? 5) +
+        (user.stats['energy'] ?? 5) +
+        (user.stats['knowledge'] ?? 5) +
+        (user.stats['strength'] ?? 5);
+    final hasAlreadyAllStats = (totalStats - 20) >= (user.level - 1) * 3;
+    final canClaimLegacy = !user.hasClaimedLegacyStats &&
+        !hasAlreadyAllStats &&
+        user.statPoints == 0 &&
+        user.level > 1;
+
     return GlassmorphicCard(
-      borderColor: AppColors.secondary,
+      borderColor: availablePoints > 0 ? AppColors.gold : AppColors.secondary,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(Icons.bar_chart_rounded, color: AppColors.secondary, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                'Karakter Statları',
-                style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+              Row(
+                children: [
+                  const Icon(Icons.bar_chart_rounded, color: AppColors.secondary, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Karakter Statları',
+                    style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                ],
               ),
+              if (availablePoints > 0)
+                InkWell(
+                  onTap: () => _showStatAllocationSheet(context, user),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [AppColors.gold, Colors.deepOrangeAccent]),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(color: AppColors.gold.withValues(alpha: 0.4), blurRadius: 8),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.bolt_rounded, color: Colors.black, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$availablePoints Puan Dağıt',
+                          style: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w800, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (canClaimLegacy)
+                InkWell(
+                  onTap: () async {
+                    await ref.read(userRepositoryProvider).claimLegacyStatPoints(user.uid);
+                    SoundEffects.playStatUp();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('⚡ ${(user.level - 1) * 3} Stat Puanı hesabınıza aktarıldı!'),
+                          backgroundColor: AppColors.gold,
+                        ),
+                      );
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.primary.withValues(alpha: 0.5)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.stars_rounded, color: AppColors.primary, size: 13),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Puanları Talep Et',
+                          style: GoogleFonts.inter(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 10),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
+          if (availablePoints > 0) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.gold.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.gold.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.tips_and_updates_rounded, color: AppColors.gold, size: 16),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Tebrikler! Seviye atladığın için $availablePoints serbest stat puanın var. İstediğin yeteneğini güçlendir!',
+                      style: GoogleFonts.inter(color: AppColors.gold, fontSize: 11, fontWeight: FontWeight.w500),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
           AnimatedStatBar(
             label: 'Odak (Focus)',
@@ -440,6 +644,223 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           ),
         ],
       ),
+    );
+  }
+
+  void _showStatAllocationSheet(BuildContext context, UserModel user) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Consumer(
+          builder: (context, ref, child) {
+            final liveUser = ref.watch(currentUserProvider).value ?? user;
+            final remainingPoints = liveUser.statPoints;
+
+            final statConfigs = [
+              {
+                'key': 'focus',
+                'name': 'Odak (Focus)',
+                'desc': 'Konsantrasyon ve derin çalışma verimini yükseltir',
+                'icon': Icons.center_focus_strong_rounded,
+                'color': AppColors.statFocus,
+              },
+              {
+                'key': 'energy',
+                'name': 'Enerji (Energy)',
+                'desc': 'Zindelik, dayanıklılık ve günlük rutin direncini artırır',
+                'icon': Icons.bolt_rounded,
+                'color': AppColors.statEnergy,
+              },
+              {
+                'key': 'knowledge',
+                'name': 'Bilgi (Knowledge)',
+                'desc': 'Öğrenme hızı, okuma ve akademik kavrayışı güçlendirir',
+                'icon': Icons.auto_stories_rounded,
+                'color': AppColors.statKnowledge,
+              },
+              {
+                'key': 'strength',
+                'name': 'Güç (Strength)',
+                'desc': 'Fiziksel güç, antrenman direnci ve kondisyonu geliştirir',
+                'icon': Icons.fitness_center_rounded,
+                'color': AppColors.statStrength,
+              },
+            ];
+
+            return Container(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              decoration: const BoxDecoration(
+                color: AppColors.cardBackground,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white24,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.stars_rounded, color: AppColors.gold, size: 24),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Stat Puanı Dağıt',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.gold.withValues(alpha: 0.4)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.flash_on_rounded, color: AppColors.gold, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              '$remainingPoints Puan',
+                              style: GoogleFonts.inter(
+                                color: AppColors.gold,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Seviye atlayarak kazandığın puanları dilediğin yeteneğine yatırarak karakterini özelleştir!',
+                    style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
+                  ),
+                  const SizedBox(height: 16),
+                  ...statConfigs.map((cfg) {
+                    final key = cfg['key'] as String;
+                    final name = cfg['name'] as String;
+                    final desc = cfg['desc'] as String;
+                    final icon = cfg['icon'] as IconData;
+                    final color = cfg['color'] as Color;
+                    final currentValue = liveUser.stats[key] ?? 0;
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.background,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: color.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: color.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(icon, color: color, size: 20),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      name,
+                                      style: GoogleFonts.inter(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Text(
+                                      '$currentValue',
+                                      style: GoogleFonts.inter(
+                                        color: color,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  desc,
+                                  style: GoogleFonts.inter(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          ElevatedButton(
+                            onPressed: remainingPoints > 0
+                                ? () async {
+                                    await ref.read(userRepositoryProvider).allocateStatPoint(liveUser.uid, key);
+                                    SoundEffects.playStatUp();
+                                  }
+                                : null,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: color,
+                              foregroundColor: Colors.white,
+                              disabledBackgroundColor: Colors.white12,
+                              disabledForegroundColor: Colors.white30,
+                              minimumSize: const Size(40, 40),
+                              padding: EdgeInsets.zero,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              elevation: 0,
+                            ),
+                            child: const Icon(Icons.add_rounded, size: 22),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white70,
+                        side: const BorderSide(color: Colors.white24),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: Text('Tamamla', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -816,6 +1237,28 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 },
               ),
               buildActionItem(
+                label: 'Mağaza',
+                icon: Icons.storefront_rounded,
+                color: Colors.amber,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const ShopScreen()),
+                  );
+                },
+              ),
+              buildActionItem(
+                label: 'Haftalık Lig',
+                icon: Icons.military_tech_rounded,
+                color: Colors.purpleAccent,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LeaderboardScreen()),
+                  );
+                },
+              ),
+              buildActionItem(
                 label: 'Başarımlar',
                 icon: Icons.emoji_events_rounded,
                 color: AppColors.primary,
@@ -827,6 +1270,278 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildWeeklyLeagueCard(BuildContext context, UserModel user) {
+    Color leagueColor;
+    String leagueName;
+    String badgeEmoji;
+    int nextGoal;
+
+    switch (user.leagueTier) {
+      case 'elmas':
+        leagueColor = const Color(0xFF67E8F9);
+        leagueName = 'Elmas / Elit Lig';
+        badgeEmoji = '💎';
+        nextGoal = 5000;
+        break;
+      case 'altin':
+        leagueColor = const Color(0xFFFFD700);
+        leagueName = 'Altın Lig';
+        badgeEmoji = '🥇';
+        nextGoal = 2500;
+        break;
+      case 'gumus':
+        leagueColor = const Color(0xFFC0C0C0);
+        leagueName = 'Gümüş Lig';
+        badgeEmoji = '🥈';
+        nextGoal = 1200;
+        break;
+      case 'bronz':
+      default:
+        leagueColor = const Color(0xFFCD7F32);
+        leagueName = 'Bronz Lig';
+        badgeEmoji = '🥉';
+        nextGoal = 500;
+        break;
+    }
+
+    final double progress = (user.weeklyXp / nextGoal).clamp(0.0, 1.0);
+
+    return InkWell(
+      onTap: () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const LeaderboardScreen()));
+      },
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.cardBackground,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: leagueColor.withValues(alpha: 0.35)),
+          boxShadow: [
+            BoxShadow(
+              color: leagueColor.withValues(alpha: 0.12),
+              blurRadius: 12,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Text(badgeEmoji, style: const TextStyle(fontSize: 22)),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          leagueName,
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
+                        Text(
+                          'Haftalık Sıralama & Podyum',
+                          style: GoogleFonts.inter(color: Colors.white54, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: leagueColor.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: leagueColor.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Podyumu Gör',
+                        style: GoogleFonts.inter(color: leagueColor, fontWeight: FontWeight.bold, fontSize: 11),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(Icons.chevron_right_rounded, color: leagueColor, size: 16),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '${user.weeklyXp} XP / $nextGoal XP',
+                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                Text(
+                  '${(progress * 100).toInt()}%',
+                  style: GoogleFonts.inter(color: leagueColor, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: Colors.white12,
+                valueColor: AlwaysStoppedAnimation<Color>(leagueColor),
+                minHeight: 6,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showStreakShieldModal(BuildContext context, UserModel user) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final lastActive = user.lastActiveDate;
+        final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+        final isTodayDone = lastActive != null &&
+            DateTime(lastActive.year, lastActive.month, lastActive.day).isAtSameMomentAs(today);
+
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          decoration: const BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.local_fire_department_rounded, color: Colors.orange, size: 28),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Seri & Kalkan Durumu',
+                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.orange.withValues(alpha: 0.4)),
+                    ),
+                    child: Text(
+                      '${user.streak} Gün Seri',
+                      style: GoogleFonts.inter(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Status breakdown
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Bugünkü Durum:', style: GoogleFonts.inter(color: Colors.white70, fontSize: 13)),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isTodayDone ? Colors.green.withValues(alpha: 0.2) : Colors.orange.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            isTodayDone ? 'Tamamlandı ✅' : 'Bekleniyor ⏳',
+                            style: GoogleFonts.inter(
+                              color: isTodayDone ? Colors.greenAccent : Colors.orangeAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Divider(color: Colors.white10, height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Streak Kalkanı (Amulet):', style: GoogleFonts.inter(color: Colors.white70, fontSize: 13)),
+                        Row(
+                          children: [
+                            const Icon(Icons.shield_rounded, color: Colors.cyanAccent, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${user.streakShields} / 3 Adet',
+                              style: GoogleFonts.inter(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                '💡 Bilgi: Her gün en az 1 görev yaparak veya odaklanma seansıyla serini devam ettirirsin. Eğer bir gün uygulamaya giremezsen, elindeki kalkan otomatik harcanarak serinin sıfırlanmasını önler!',
+                style: GoogleFonts.inter(color: Colors.white60, fontSize: 12, height: 1.4),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.storefront_rounded, size: 18),
+                  label: Text('Mağazadan Kalkan Al (350 🪙)', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopScreen()));
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

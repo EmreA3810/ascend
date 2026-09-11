@@ -10,6 +10,7 @@ import '../../user/providers/user_provider.dart';
 import '../../user/data/user_model.dart';
 import '../data/loot_pool.dart';
 import 'character_painter.dart';
+import '../../shop/presentation/shop_screen.dart';
 
 class WardrobeScreen extends ConsumerStatefulWidget {
   const WardrobeScreen({super.key});
@@ -234,6 +235,15 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
           'Karakter Gardırobu',
           style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.storefront_rounded, color: Colors.amber),
+            tooltip: 'Mağaza & Yoldaşlar',
+            onPressed: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopScreen()));
+            },
+          ),
+        ],
       ),
       body: userAsync.when(
         loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
