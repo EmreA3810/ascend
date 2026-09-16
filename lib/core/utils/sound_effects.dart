@@ -73,6 +73,33 @@ class SoundEffects {
   }
 
   static Uint8List? _errorWav;
+  static Uint8List? _hitWav;
+
+  /// Savaş Modu canavara darbe/vuruş efekti (Impact & Punch)
+  static Future<void> playHit() async {
+    if (_hitWav == null) {
+      const sampleRate = 22050;
+      const duration = 0.13;
+      final totalSamples = (sampleRate * duration).toInt();
+      final samples = <int>[];
+      final random = Random(77);
+
+      for (int i = 0; i < totalSamples; i++) {
+        final t = i / sampleRate;
+        final progress = i / totalSamples;
+        // 190 Hz'den 45 Hz'e hızlı frekans düşüşü (pitch dive)
+        final freq = 190.0 * exp(-progress * 2.8);
+        final env = exp(-progress * 5.0);
+        // İlk 30ms için tok gürültü darbesi (punch snap)
+        final noise = (progress < 0.25) ? (random.nextDouble() * 2 - 1) * (1.0 - progress / 0.25) * 0.4 : 0.0;
+        final tone = sin(2 * pi * freq * t);
+        final val = (tone * 0.7 + noise) * env * 22000;
+        samples.add(val.round().clamp(-32768, 32767));
+      }
+      _hitWav = _samplesToWav(samples, sampleRate: sampleRate);
+    }
+    await _playBytes(_hitWav!);
+  }
 
   /// Uyarı / Hata / Odak bozulma tonu
   static Future<void> playError() async {
@@ -86,7 +113,33 @@ class SoundEffects {
   static Uint8List? _lofiWav;
   static Uint8List? _rainWav;
   static Uint8List? _zenWav;
+  static Uint8List? _deepZenWav;
   static Uint8List? _breezeWav;
+
+  /// Zen Modu İçin Derin ve Yavaş Rezonanslı Meditasyon Dalgası (432Hz + 108Hz Sub)
+  static Uint8List getDeepZenWav() {
+    if (_deepZenWav != null) return _deepZenWav!;
+    const sampleRate = 22050;
+    const duration = 12.0;
+    final totalSamples = (sampleRate * duration).toInt();
+    final samples = <int>[];
+
+    for (int i = 0; i < totalSamples; i++) {
+      final t = i / sampleRate;
+      // Çok yavaş nefes LFO'su
+      final breath = (sin(2 * pi * 0.12 * t) + 1.0) * 0.5;
+      final fundamental = sin(2 * pi * 432.0 * t) * 0.4;
+      final sub = sin(2 * pi * 108.0 * t) * 0.55;
+      final overtone = sin(2 * pi * 216.0 * t) * 0.25;
+
+      final loopEnv = sin(pi * (i / totalSamples));
+      final val = (fundamental + sub + overtone) * (0.7 + 0.3 * breath) * loopEnv * 7500;
+      samples.add(val.round().clamp(-32768, 32767));
+    }
+
+    _deepZenWav = _samplesToWav(samples, sampleRate: sampleRate);
+    return _deepZenWav!;
+  }
 
   /// Lofi Chill Piano & Rhodes Akorları (Döngüsel odak müziği)
   static Uint8List getLofiBeatsWav() {

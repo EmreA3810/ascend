@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/xp_gain_popup.dart';
 import '../../../core/widgets/glassmorphic_card.dart';
@@ -13,6 +14,14 @@ import '../../user/providers/user_provider.dart';
 import 'session_history_sheet.dart';
 import '../../quests/providers/quest_provider.dart';
 import '../../../core/utils/sound_effects.dart';
+import '../../combat/data/boss_monster.dart';
+import '../../combat/data/boss_catalog.dart';
+import '../../combat/domain/combat_calculator.dart';
+import '../../combat/presentation/boss_painter.dart';
+import 'widgets/zen_particles_widget.dart';
+import 'widgets/zen_desk_widget.dart';
+import 'widgets/boss_battle_arena.dart';
+import 'widgets/boss_loot_dialog.dart';
 
 class PomodoroScreen extends ConsumerStatefulWidget {
   const PomodoroScreen({super.key});
@@ -30,10 +39,12 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
   bool _isBreak = false;
   Timer? _timer;
 
-  // Derin Odak Modu (Katı Mod - Forest Modeli)
-  bool _isDeepFocusMode = true;
-  bool _hasViolatedDeepFocus = false;
-  int _deepFocusViolations = 0;
+  // Odak Modu: 'battle' (Savaş Modu - Varsayılan) veya 'zen' (Zen Modu)
+  String _selectedFocusMode = 'battle';
+  BossMonster? _selectedBoss;
+  DateTime? _sessionEndTime;
+  bool _isAttacking = false;
+  bool _isBossHit = false;
 
   String _selectedFocusArea = 'academic'; // 'academic', 'fitness', 'reading', 'coding'
 
@@ -238,6 +249,69 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
     _initAcademicGoals();
     _initCodingTasks();
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedMode = prefs.getString('pomodoro_focus_mode') ?? 'battle';
+      if (mounted) {
+        setState(() {
+          _selectedFocusMode = (savedMode == 'zen') ? 'zen' : 'battle';
+          _selectedBoss = BossCatalog.getBossForFocusArea(_selectedFocusArea);
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _selectedBoss = BossCatalog.getBossForFocusArea(_selectedFocusArea);
+        });
+      }
+    }
+  }
+
+  Future<void> _changeFocusMode(String mode) async {
+    if (_selectedFocusMode == mode) return;
+    setState(() {
+      _selectedFocusMode = mode;
+    });
+    if (_isRunning) {
+      if (mode == 'zen') {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      } else {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      }
+    }
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('pomodoro_focus_mode', mode);
+    } catch (_) {}
+  }
+
+  void _triggerHitEffect() {
+    if (!mounted) return;
+    setState(() {
+      _isAttacking = true;
+    });
+    SoundEffects.playHit();
+
+    Future.delayed(const Duration(milliseconds: 140), () {
+      if (mounted) {
+        setState(() {
+          _isBossHit = true;
+        });
+      }
+    });
+
+    Future.delayed(const Duration(milliseconds: 320), () {
+      if (mounted) {
+        setState(() {
+          _isAttacking = false;
+          _isBossHit = false;
+        });
+      }
+    });
   }
 
   @override
@@ -248,6 +322,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     _pulseController.dispose();
     _playerSubscription?.cancel();
     _player.dispose();
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     if (_isImmersive) {
       _immersiveOverlay?.remove();
     }
@@ -263,49 +338,33 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_isRunning && _isDeepFocusMode && !_isBreak && _selectedFocusArea != 'fitness') {
-      if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-        _hasViolatedDeepFocus = true;
-        _deepFocusViolations++;
-      } else if (state == AppLifecycleState.resumed && _hasViolatedDeepFocus) {
-        _showDeepFocusViolationWarning();
+    if (state == AppLifecycleState.resumed) {
+      // Wall-Clock Senkronizasyonu: Arka planda timer askıya alınması ve drift'e karşı kesin çözüm
+      if (_isRunning && _sessionEndTime != null) {
+        final now = DateTime.now();
+        final diffSeconds = _sessionEndTime!.difference(now).inSeconds;
+        final totalSeconds = (_isBreak ? _selectedBreakDuration : _selectedWorkDuration) * 60;
+
+        if (diffSeconds <= 0) {
+          _secondsLeft = 0;
+          _timer?.cancel();
+          _sessionEndTime = null;
+          final user = ref.read(currentUserProvider).value;
+          if (user != null) {
+            _onTimerComplete(user.uid);
+          }
+        } else {
+          _updateState(() {
+            _secondsLeft = diffSeconds.clamp(0, totalSeconds);
+          });
+        }
+      }
+
+      // Zen modu tam ekranını geri yükle
+      if (_isRunning && _selectedFocusMode == 'zen') {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       }
     }
-  }
-
-  void _showDeepFocusViolationWarning() {
-    if (!mounted) return;
-    SoundEffects.playError();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.red.shade900,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        content: Row(
-          children: [
-            const Icon(Icons.warning_amber_rounded, color: Colors.amberAccent, size: 24),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '⚠️ Odaktan Ayrıldın!',
-                    style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 13),
-                  ),
-                  Text(
-                    'Katı modda başka uygulamaya geçmek odak büyüsünü zedeler! Kusursuz bonusu kaybettin.',
-                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 11),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        duration: const Duration(seconds: 4),
-      ),
-    );
   }
 
   void _updateOverlay() {
@@ -337,29 +396,146 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     });
   }
 
+  void _cancelSession() {
+    _timer?.cancel();
+    _sessionEndTime = null;
+    if (_selectedFocusMode == 'zen') {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
+
+    final wasRunning = _isRunning;
+    _updateState(() {
+      _isRunning = false;
+      _secondsLeft = _isBreak ? _selectedBreakDuration * 60 : _selectedWorkDuration * 60;
+    });
+
+    if (wasRunning && !_isBreak) {
+      if (_selectedFocusMode == 'battle') {
+        final boss = _selectedBoss ?? BossCatalog.getBossForFocusArea(_selectedFocusArea);
+        _showBossEscapedDialog(boss);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: AppColors.cardBackground,
+            content: Text(
+              '🌿 Seans durduruldu. Zihnini dinlendir ve dilediğinde tekrar başla.',
+              style: GoogleFonts.inter(color: Colors.white70),
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showBossEscapedDialog(BossMonster boss) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF161A26),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: boss.primaryColor.withValues(alpha: 0.4)),
+        ),
+        title: Row(
+          children: [
+            SizedBox(
+              width: 36,
+              height: 36,
+              child: BossAvatar(
+                boss: boss,
+                hpPercentage: 1.0,
+                size: 36,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Canavar Kaçtı!',
+                style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              boss.escapeQuote,
+              style: GoogleFonts.inter(color: Colors.white70, fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.shield_outlined, color: Colors.tealAccent, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Ceza yok! Serin korunuyor. Dinlenip tekrar deneyebilirsin.',
+                      style: GoogleFonts.inter(color: Colors.white60, fontSize: 11),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(
+              'Tamam',
+              style: GoogleFonts.inter(color: AppColors.primary, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _startPause() {
     final user = ref.read(currentUserProvider).value;
     if (user == null) return;
 
     if (_isRunning) {
       _timer?.cancel();
+      _sessionEndTime = null;
       _updateState(() {
         _isRunning = false;
       });
+      if (_selectedFocusMode == 'zen') {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      }
     } else {
-      _hasViolatedDeepFocus = false;
-      _deepFocusViolations = 0;
+      _sessionEndTime = DateTime.now().add(Duration(seconds: _secondsLeft));
       _updateState(() {
         _isRunning = true;
       });
+      if (_selectedFocusMode == 'zen') {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      }
       
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (_secondsLeft > 1) {
           _updateState(() {
             _secondsLeft--;
           });
+          // Savaş Modu: Seans boyunca her 10 saniyede bir canavara vuruş darbesi
+          if (_selectedFocusMode == 'battle' && !_isBreak && (_secondsLeft % 10 == 0)) {
+            _triggerHitEffect();
+          }
         } else {
           _timer?.cancel();
+          _sessionEndTime = null;
           _onTimerComplete(user.uid);
         }
       });
@@ -372,18 +548,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
       final ended = DateTime.now();
       final started = ended.subtract(Duration(minutes: _selectedWorkDuration));
       
-      int multiplier = 2;
-      bool isBonus = false;
-      if (_isDeepFocusMode && _deepFocusViolations == 0) {
-        multiplier = 3; // Kusursuz Katı Odak bonusu (+%50 XP!)
-        isBonus = true;
-      }
-      final xpEarned = _selectedWorkDuration * multiplier;
-
-      // Okuma ve fitness değilse mikro-sorumluluk / seans özeti dialogunu aç
-      if (_selectedFocusArea != 'reading' && _selectedFocusArea != 'fitness') {
-        await _showSessionReflectionDialog(uid, xpEarned, isBonus);
-      }
+      final xpEarned = _selectedWorkDuration * 2;
 
       final session = PomodoroSessionModel(
         id: '',
@@ -398,12 +563,15 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
       // Save to Firestore
       await ref.read(pomodoroRepositoryProvider).saveSession(uid, session);
 
+      // FOC stat artışı (her iki modda da aynı şekilde artar)
+      await ref.read(userRepositoryProvider).boostStat(uid, 'foc', 1);
+
       // Fetch active quests
       final dailyQuests = ref.read(dailyQuestsProvider).value ?? [];
       final weeklyQuests = ref.read(weeklyQuestsProvider).value ?? [];
       final customQuests = ref.read(customQuestsProvider).value ?? [];
 
-      // 1. Increment standard Pomodoro completion daily quests (unit == 'seans')
+      // 1. Increment standard Pomodoro completion daily quests
       final seansQuests = dailyQuests.where((q) => q.unit == 'seans' && !q.isCompleted);
       for (final q in seansQuests) {
         await ref.read(questRepositoryProvider).incrementQuestProgress(uid, q.id, 1);
@@ -411,34 +579,49 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
       // 2. Focus area specific actions
       if (_selectedFocusArea == 'academic') {
-        // Study duration quests
         final targetQuests = [...dailyQuests, ...weeklyQuests, ...customQuests]
             .where((q) => q.unit == 'dk' && !q.isCompleted && (q.statBoost == 'knowledge' || q.title.toLowerCase().contains('ders') || q.title.toLowerCase().contains('çalışma')));
         for (final q in targetQuests) {
           await ref.read(questRepositoryProvider).incrementQuestProgress(uid, q.id, _selectedWorkDuration);
         }
-
-        if (mounted) {
-          XpGainPopup.show(context, xp: xpEarned, statName: 'knowledge', statAmount: 1);
-        }
       } else if (_selectedFocusArea == 'coding') {
-        // Coding duration quests
         final targetQuests = [...dailyQuests, ...weeklyQuests, ...customQuests]
             .where((q) => q.unit == 'dk' && !q.isCompleted && (q.statBoost == 'focus' || q.title.toLowerCase().contains('kod') || q.title.toLowerCase().contains('yazılım')));
         for (final q in targetQuests) {
           await ref.read(questRepositoryProvider).incrementQuestProgress(uid, q.id, _selectedWorkDuration);
         }
-
-        if (mounted) {
-          XpGainPopup.show(context, xp: xpEarned, statName: 'focus', statAmount: 1);
-        }
       } else if (_selectedFocusArea == 'reading') {
-        // Okuma focus triggers the page dialog
         await _showReadingPageDialog(uid, xpEarned);
-      } else {
-        // General focus area
+      }
+
+      // MOD BAZLI ÖDÜL VE KUTLAMA
+      if (_selectedFocusMode == 'battle') {
+        final boss = _selectedBoss ?? BossCatalog.getBossForFocusArea(_selectedFocusArea);
+        final goldEarned = CombatCalculator.rollGoldReward(boss.minGold, boss.maxGold);
+        final droppedChest = CombatCalculator.rollChestDrop(boss.chestDropChances);
+
+        // Firestore güncellemeleri
+        await ref.read(userRepositoryProvider).addGold(uid, goldEarned);
+        if (droppedChest != null) {
+          await ref.read(userRepositoryProvider).addChest(uid, droppedChest);
+        }
+
+        SoundEffects.playVictory();
         if (mounted) {
-          XpGainPopup.show(context, xp: xpEarned, statName: 'focus', statAmount: 1);
+          await BossLootDialog.show(
+            context,
+            boss: boss,
+            xpEarned: xpEarned,
+            goldEarned: goldEarned,
+            droppedChestRarity: droppedChest,
+          );
+        }
+      } else {
+        // Zen Modu
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+        SoundEffects.playVictory();
+        if (mounted) {
+          XpGainPopup.show(context, xp: xpEarned, statName: 'foc', statAmount: 1);
         }
       }
 
@@ -586,196 +769,103 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     }
   }
 
-  Future<void> _showSessionReflectionDialog(String uid, int xpEarned, bool isBonus) async {
-    final noteCtrl = TextEditingController();
-    final quickTags = ['Matematik 📐', 'Fizik ⚡', 'Soru Çözümü 📝', 'Kitap 📖', 'Kodlama 💻', 'Yabancı Dil 🌍', 'Ödev 📚'];
 
-    await showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: AppColors.cardBackground,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
-                side: BorderSide(color: isBonus ? AppColors.gold : AppColors.primary.withValues(alpha: 0.3)),
-              ),
-              title: Row(
-                children: [
-                  Text(isBonus ? '🏆' : '🎉', style: const TextStyle(fontSize: 24)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Odak Tamamlandı!',
-                          style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-                        ),
-                        Text(
-                          isBonus ? '⚡ +$xpEarned XP (Kusursuz Katı Odak Bonusu!)' : '⚡ +$xpEarned XP Kazanıldı',
-                          style: GoogleFonts.inter(
-                            color: isBonus ? AppColors.gold : AppColors.secondary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Bu seansta neler başardın? Kısa bir not düşerek disiplinini belgele:',
-                      style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
-                    ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: quickTags.map((tag) {
-                        return ActionChip(
-                          backgroundColor: Colors.white10,
-                          label: Text(tag, style: GoogleFonts.inter(color: Colors.white70, fontSize: 11)),
-                          onPressed: () {
-                            setDialogState(() {
-                              if (noteCtrl.text.isEmpty) {
-                                noteCtrl.text = tag;
-                              } else {
-                                noteCtrl.text += ', $tag';
-                              }
-                            });
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: noteCtrl,
-                      style: GoogleFonts.inter(color: Colors.white),
-                      maxLines: 2,
-                      decoration: InputDecoration(
-                        hintText: 'Örn: 30 Soru çözüldü veya konu özeti çıkarıldı...',
-                        hintStyle: GoogleFonts.inter(color: Colors.white30, fontSize: 12),
-                        filled: true,
-                        fillColor: AppColors.background,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isBonus ? AppColors.gold : AppColors.primary,
-                    foregroundColor: isBonus ? Colors.black : Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  ),
-                  onPressed: () {
-                    SoundEffects.playVictory();
-                    Navigator.pop(ctx);
-                  },
-                  child: Text(
-                    'Ödülü Al & Devam Et ✨',
-                    style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-  }
 
-  Widget _buildDeepFocusToggle() {
+  Widget _buildFocusModeSegmentedSwitch() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: _isDeepFocusMode
-              ? [AppColors.gold.withValues(alpha: 0.18), AppColors.cardBackground]
-              : [Colors.white10, AppColors.cardBackground],
-        ),
+        color: const Color(0xFF131826),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: _isDeepFocusMode ? AppColors.gold.withValues(alpha: 0.4) : Colors.white12,
-        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: _isDeepFocusMode ? AppColors.gold.withValues(alpha: 0.2) : Colors.white10,
-            ),
-            child: Icon(
-              Icons.security_rounded,
-              color: _isDeepFocusMode ? AppColors.gold : Colors.white38,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
+          // ⚔️ Savaş Modu
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+            child: InkWell(
+              onTap: _isRunning ? null : () => _changeFocusMode('battle'),
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  gradient: _selectedFocusMode == 'battle'
+                      ? const LinearGradient(
+                          colors: [Color(0xFFD32F2F), Color(0xFFFF5722)],
+                        )
+                      : null,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: _selectedFocusMode == 'battle'
+                      ? [
+                          BoxShadow(
+                            color: Colors.red.withValues(alpha: 0.35),
+                            blurRadius: 10,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    const Text('⚔️', style: TextStyle(fontSize: 14)),
+                    const SizedBox(width: 6),
                     Text(
-                      '🛡️ Derin Odak (Katı Mod)',
+                      'Savaş Modu',
                       style: GoogleFonts.inter(
-                        color: _isDeepFocusMode ? Colors.white : Colors.white70,
+                        color: _selectedFocusMode == 'battle' ? Colors.white : Colors.white60,
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
                       ),
                     ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // 🌌 Zen Modu
+          Expanded(
+            child: InkWell(
+              onTap: _isRunning ? null : () => _changeFocusMode('zen'),
+              borderRadius: BorderRadius.circular(12),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(vertical: 9),
+                decoration: BoxDecoration(
+                  gradient: _selectedFocusMode == 'zen'
+                      ? const LinearGradient(
+                          colors: [Color(0xFF303F9F), Color(0xFF0097A7)],
+                        )
+                      : null,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: _selectedFocusMode == 'zen'
+                      ? [
+                          BoxShadow(
+                            color: Colors.cyan.withValues(alpha: 0.3),
+                            blurRadius: 10,
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('🌌', style: TextStyle(fontSize: 14)),
                     const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: AppColors.gold.withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '+%50 Bonus XP',
-                        style: GoogleFonts.inter(color: AppColors.gold, fontWeight: FontWeight.w800, fontSize: 10),
+                    Text(
+                      'Zen Modu',
+                      style: GoogleFonts.inter(
+                        color: _selectedFocusMode == 'zen' ? Colors.white : Colors.white60,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  _isDeepFocusMode
-                      ? 'Uygulamadan ayrılırsan odak bozulur! Kusursuz bitirirsen bonus XP kazanırsın.'
-                      : 'Rahat mod: Uygulamadan ayrılsan da süre işlemeye devam eder.',
-                  style: GoogleFonts.inter(color: Colors.white54, fontSize: 11),
-                ),
-              ],
+              ),
             ),
-          ),
-          Switch(
-            value: _isDeepFocusMode,
-            activeThumbColor: AppColors.gold,
-            activeTrackColor: AppColors.gold.withValues(alpha: 0.4),
-            onChanged: _isRunning
-                ? null
-                : (val) {
-                    setState(() {
-                      _isDeepFocusMode = val;
-                    });
-                  },
           ),
         ],
       ),
@@ -1220,7 +1310,9 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
                 ? null
                 : () {
                     setState(() {
-                      _selectedFocusArea = area['id'] as String;
+                      final newArea = area['id'] as String;
+                      _selectedFocusArea = newArea;
+                      _selectedBoss = BossCatalog.getBossForFocusArea(newArea);
                     });
                   },
             child: Opacity(
@@ -3265,6 +3357,852 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     );
   }
 
+  Widget _buildDurationChips() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Çalışma Süresi (Dakika)',
+            style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [1, 15, 25, 45, 60].map((mins) {
+              final isSel = _selectedWorkDuration == mins;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: ChoiceChip(
+                    showCheckmark: false,
+                    label: Text('$mins dk'),
+                    selected: isSel,
+                    onSelected: (_) => _selectWorkDuration(mins),
+                    backgroundColor: AppColors.background,
+                    selectedColor: AppColors.primary.withValues(alpha: 0.2),
+                    labelStyle: GoogleFonts.inter(
+                      color: isSel ? AppColors.primary : AppColors.textSecondary,
+                      fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 12,
+                    ),
+                    side: BorderSide(
+                      color: isSel ? AppColors.primary : AppColors.primary.withValues(alpha: 0.1),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Mola Süresi (Dakika)',
+            style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [5, 10, 15].map((mins) {
+              final isSel = _selectedBreakDuration == mins;
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: ChoiceChip(
+                    showCheckmark: false,
+                    label: Text('$mins dk'),
+                    selected: isSel,
+                    onSelected: (_) => _selectBreakDuration(mins),
+                    backgroundColor: AppColors.background,
+                    selectedColor: AppColors.secondary.withValues(alpha: 0.2),
+                    labelStyle: GoogleFonts.inter(
+                      color: isSel ? AppColors.secondary : AppColors.textSecondary,
+                      fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 12,
+                    ),
+                    side: BorderSide(
+                      color: isSel ? AppColors.secondary : AppColors.secondary.withValues(alpha: 0.1),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMusicControlsCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    _playlist[_currentTrackIndex]['icon'] as IconData? ?? Icons.music_note_rounded,
+                    color: _isMusicPlaying ? AppColors.secondary : AppColors.textSecondary,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _playlist[_currentTrackIndex]['name'] as String,
+                        style: GoogleFonts.inter(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      Text(
+                        _isMusicPlaying ? 'Çalıyor (Kesintisiz Döngü)' : 'Duraklatıldı',
+                        style: GoogleFonts.inter(
+                          color: _isMusicPlaying ? AppColors.secondary : AppColors.textSecondary,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.skip_previous_rounded, color: Colors.white, size: 22),
+                    onPressed: _prevTrack,
+                    tooltip: 'Önceki Parça',
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      _isMusicPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
+                      color: AppColors.secondary,
+                      size: 32,
+                    ),
+                    onPressed: _toggleMusic,
+                    tooltip: _isMusicPlaying ? 'Durdur' : 'Çal',
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 22),
+                    onPressed: _nextTrack,
+                    tooltip: 'Sonraki Parça',
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: List.generate(_playlist.length, (i) {
+                final track = _playlist[i];
+                final isSel = _currentTrackIndex == i;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: FilterChip(
+                    showCheckmark: false,
+                    avatar: Icon(
+                      track['icon'] as IconData? ?? Icons.music_note_rounded,
+                      size: 14,
+                      color: isSel ? Colors.white : AppColors.textSecondary,
+                    ),
+                    label: Text(track['name'] as String),
+                    selected: isSel,
+                    onSelected: (_) => _selectTrack(i),
+                    backgroundColor: AppColors.background,
+                    selectedColor: AppColors.secondary.withValues(alpha: 0.35),
+                    labelStyle: GoogleFonts.inter(
+                      color: isSel ? Colors.white : AppColors.textSecondary,
+                      fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 11,
+                    ),
+                    side: BorderSide(
+                      color: isSel ? AppColors.secondary : Colors.white10,
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              const Icon(Icons.volume_down_rounded, color: AppColors.textSecondary, size: 16),
+              Expanded(
+                child: Slider(
+                  value: _volume,
+                  min: 0.0,
+                  max: 1.0,
+                  activeColor: AppColors.secondary,
+                  inactiveColor: AppColors.background,
+                  onChanged: _setVolume,
+                ),
+              ),
+              const Icon(Icons.volume_up_rounded, color: AppColors.textSecondary, size: 16),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- ZEN MODU: Müzik Seçici Modalı ---
+  void _showZenMusicPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF161A26),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '🎵 Zen Ambiyans Müziği',
+                        style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          _isMusicPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
+                          color: AppColors.secondary,
+                          size: 28,
+                        ),
+                        onPressed: () {
+                          _toggleMusic();
+                          setSheetState(() {});
+                        },
+                        tooltip: _isMusicPlaying ? 'Durdur' : 'Çal',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ...List.generate(_playlist.length, (i) {
+                    final track = _playlist[i];
+                    final isSel = _currentTrackIndex == i;
+                    return InkWell(
+                      onTap: () {
+                        _selectTrack(i);
+                        setSheetState(() {});
+                        Navigator.of(ctx).pop();
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isSel ? AppColors.secondary.withValues(alpha: 0.18) : Colors.white.withValues(alpha: 0.04),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSel ? AppColors.secondary : Colors.white10,
+                            width: isSel ? 1.5 : 1,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              track['icon'] as IconData? ?? Icons.music_note_rounded,
+                              color: isSel ? AppColors.secondary : Colors.white70,
+                              size: 22,
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    track['name'] as String,
+                                    style: GoogleFonts.inter(
+                                      color: Colors.white,
+                                      fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    track['desc'] as String? ?? '',
+                                    style: GoogleFonts.inter(color: Colors.white54, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (isSel)
+                              Icon(
+                                _isMusicPlaying ? Icons.equalizer_rounded : Icons.check_circle_rounded,
+                                color: AppColors.secondary,
+                                size: 20,
+                              ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.volume_down_rounded, color: Colors.white54, size: 16),
+                      Expanded(
+                        child: Slider(
+                          value: _volume,
+                          min: 0.0,
+                          max: 1.0,
+                          activeColor: AppColors.secondary,
+                          inactiveColor: Colors.white12,
+                          onChanged: (v) {
+                            _setVolume(v);
+                            setSheetState(() {});
+                          },
+                        ),
+                      ),
+                      const Icon(Icons.volume_up_rounded, color: Colors.white54, size: 16),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // --- ZEN MODU: Tam Ekran Çalışma Görünümü ---
+  Widget _buildZenRunningFullscreen(dynamic user, Color accentColor) {
+    return Material(
+      color: const Color(0xFF0C101A),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // 1. Arka Plan Partikülleri (Seçili ambiyans sesine duyarlı & 25 partikül optimize)
+          Positioned.fill(
+            child: ZenParticlesWidget(
+              trackType: _playlist[_currentTrackIndex]['type'] as String?,
+            ),
+          ),
+
+          // 2. Üst Bar: Parça bilgisi, müzik durdurma/değiştirme & Tam ekrandan ayrılma
+          Positioned(
+            top: 20,
+            left: 16,
+            right: 16,
+            child: SafeArea(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Şarkı seçici pill
+                  InkWell(
+                    onTap: () => _showZenMusicPicker(context),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _playlist[_currentTrackIndex]['icon'] as IconData? ?? Icons.music_note_rounded,
+                            color: _isMusicPlaying ? accentColor : Colors.white38,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _playlist[_currentTrackIndex]['name'] as String,
+                            style: GoogleFonts.inter(
+                              color: _isMusicPlaying ? Colors.white : Colors.white60,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.expand_more_rounded, color: Colors.white54, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Müzik Kontrolleri & Tam Ekran Çıkışı
+                  Row(
+                    children: [
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.skip_previous_rounded, color: Colors.white70, size: 22),
+                        tooltip: 'Önceki Müzik',
+                        onPressed: _prevTrack,
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(
+                          _isMusicPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
+                          color: accentColor,
+                          size: 28,
+                        ),
+                        tooltip: _isMusicPlaying ? 'Müziği Durdur' : 'Müziği Çal',
+                        onPressed: _toggleMusic,
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.skip_next_rounded, color: Colors.white70, size: 22),
+                        tooltip: 'Sonraki Müzik',
+                        onPressed: _nextTrack,
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.fullscreen_exit_rounded, color: Colors.white54, size: 26),
+                        tooltip: 'Normal Görünüme Dön',
+                        onPressed: () {
+                          SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+                          _updateState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 3. Merkez: Karakter, Saat, İnce Bar ve Müzik Kontrolleri
+          SafeArea(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ZenDeskWidget(
+                  equippedItems: user.equippedItems,
+                  isWorking: true,
+                ),
+                const SizedBox(height: 16),
+
+                // Seans Durumu
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: accentColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: accentColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    _isBreak ? '☕ MOLA ZAMANI' : '🌌 ZEN ODAK SEANSI',
+                    style: GoogleFonts.inter(
+                      color: accentColor,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                      letterSpacing: 2.0,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+
+                // Büyük Minimalist Dijital Saat
+                Text(
+                  _timeString,
+                  style: GoogleFonts.outfit(
+                    color: Colors.white,
+                    fontSize: 72,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 4,
+                    shadows: [
+                      Shadow(
+                        color: accentColor.withValues(alpha: 0.45),
+                        blurRadius: 24,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+
+                // İnce Progress Bar
+                SizedBox(
+                  width: 250,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: _progress,
+                      backgroundColor: Colors.white10,
+                      valueColor: AlwaysStoppedAnimation<Color>(accentColor),
+                      minHeight: 4,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 28),
+
+                // Minimal Sayaç Kontrolleri
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Duraklat / Devam Et
+                    GestureDetector(
+                      onTap: _startPause,
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: accentColor.withValues(alpha: 0.2),
+                          border: Border.all(color: accentColor.withValues(alpha: 0.6), width: 1.5),
+                        ),
+                        child: Icon(
+                          _isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 30,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 18),
+                    // Seansı Bitir / Kaç
+                    GestureDetector(
+                      onTap: _cancelSession,
+                      child: Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withValues(alpha: 0.08),
+                          border: Border.all(color: Colors.white24),
+                        ),
+                        child: const Icon(
+                          Icons.stop_rounded,
+                          color: Colors.white70,
+                          size: 22,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Zen Modu Hızlı Müzik Çalar Barı
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      InkWell(
+                        onTap: () => _showZenMusicPicker(context),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              _playlist[_currentTrackIndex]['icon'] as IconData? ?? Icons.music_note_rounded,
+                              color: _isMusicPlaying ? accentColor : Colors.white38,
+                              size: 15,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _playlist[_currentTrackIndex]['name'] as String,
+                              style: GoogleFonts.inter(
+                                color: _isMusicPlaying ? Colors.white : Colors.white60,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(width: 1, height: 14, color: Colors.white12),
+                      const SizedBox(width: 2),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.skip_previous_rounded, color: Colors.white70, size: 18),
+                        tooltip: 'Önceki Parça',
+                        onPressed: _prevTrack,
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(
+                          _isMusicPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
+                          color: accentColor,
+                          size: 24,
+                        ),
+                        tooltip: _isMusicPlaying ? 'Durdur' : 'Çal',
+                        onPressed: _toggleMusic,
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.skip_next_rounded, color: Colors.white70, size: 18),
+                        tooltip: 'Sonraki Parça',
+                        onPressed: _nextTrack,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- ZEN MODU: Bekleme Görünümü ---
+  Widget _buildZenIdleView(dynamic user, Color accentColor) {
+    return Column(
+      children: [
+        ZenDeskWidget(
+          equippedItems: user.equippedItems,
+          isWorking: false,
+        ),
+        const SizedBox(height: 16),
+
+        Text(
+          _timeString,
+          style: GoogleFonts.outfit(
+            color: Colors.white,
+            fontSize: 56,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 2,
+          ),
+        ),
+        Text(
+          _isBreak ? 'Mola Hazırlığı' : 'Huzurlu ve Kesintisiz Odaklanma',
+          style: GoogleFonts.inter(
+            color: Colors.white60,
+            fontSize: 13,
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        GestureDetector(
+          onTap: _startPause,
+          child: Container(
+            width: double.infinity,
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF303F9F), Color(0xFF0097A7)],
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0097A7).withValues(alpha: 0.35),
+                  blurRadius: 16,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 26),
+                const SizedBox(width: 8),
+                Text(
+                  'Zen Seansını Başlat',
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        _buildDurationChips(),
+        const SizedBox(height: 16),
+
+        _buildCategoryAssistantCard(),
+        const SizedBox(height: 16),
+
+        _buildMusicControlsCard(),
+      ],
+    );
+  }
+
+  // --- SAVAŞ MODU: Boss Battle Görünümü ---
+  Widget _buildBattleModeView(dynamic user, Color accentColor) {
+    final boss = _selectedBoss ?? BossCatalog.getBossForFocusArea(_selectedFocusArea);
+    final totalSeconds = (_isBreak ? _selectedBreakDuration : _selectedWorkDuration) * 60;
+    final maxHp = boss.calculateMaxHp(_selectedWorkDuration);
+
+    return Column(
+      children: [
+        // 1. Boss Arenası (Boss kartı, HP barı, Karakter ve vuruş animasyonu)
+        BossBattleArena(
+          boss: boss,
+          secondsLeft: _secondsLeft,
+          totalSeconds: totalSeconds,
+          maxHp: maxHp,
+          isRunning: _isRunning,
+          isAttacking: _isAttacking,
+          isBossHit: _isBossHit,
+          equippedItems: user.equippedItems,
+          onBossChanged: (b) {
+            setState(() {
+              _selectedBoss = b;
+            });
+          },
+          onManualAttack: _triggerHitEffect,
+        ),
+
+        // 2. Dairesel Savaş Sayacı
+        AnimatedBuilder(
+          animation: _pulseController,
+          builder: (context, child) {
+            final glow = _isRunning ? (_pulseController.value * 0.25 + 0.1) : 0.05;
+            final scale = _isRunning ? (1.0 + (_pulseController.value * 0.015)) : 1.0;
+            return Transform.scale(
+              scale: scale,
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(color: boss.primaryColor.withValues(alpha: 0.2), width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: boss.primaryColor.withValues(alpha: glow),
+                      blurRadius: 32,
+                      spreadRadius: 3,
+                    ),
+                  ],
+                ),
+                child: child,
+              ),
+            );
+          },
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 200,
+                height: 200,
+                child: CircularProgressIndicator(
+                  value: _progress,
+                  backgroundColor: AppColors.cardBackground,
+                  valueColor: AlwaysStoppedAnimation<Color>(boss.accentColor),
+                  strokeWidth: 9,
+                  strokeCap: StrokeCap.round,
+                ),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _timeString,
+                    style: GoogleFonts.inter(
+                      color: Colors.white,
+                      fontSize: 44,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                  Text(
+                    _isBreak ? '☕ Mola' : '⚔️ Savaş',
+                    style: GoogleFonts.inter(color: boss.accentColor, fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+
+        // 3. Savaş Kontrol Butonları
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Erken Bitir / Kaç
+            IconButton(
+              onPressed: _cancelSession,
+              tooltip: 'Seansı Bitir',
+              icon: const Icon(Icons.stop_circle_outlined, size: 30, color: Colors.white60),
+            ),
+            const SizedBox(width: 16),
+            // Başlat / Duraklat
+            GestureDetector(
+              onTap: _startPause,
+              child: Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [boss.primaryColor, boss.accentColor],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: boss.primaryColor.withValues(alpha: 0.4),
+                      blurRadius: 16,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+                child: Icon(
+                  _isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 34,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+
+        // 4. Süre Seçim Çipleri
+        _buildDurationChips(),
+        const SizedBox(height: 16),
+
+        // 5. Kategori Asistanı
+        _buildCategoryAssistantCard(),
+        const SizedBox(height: 16),
+
+        // 6. Müzik Seçim Kartı
+        _buildMusicControlsCard(),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final userAsync = ref.watch(currentUserProvider);
@@ -3280,22 +4218,50 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     final Color accentColor = _isBreak ? AppColors.secondary : AppColors.primary;
     final todaySessionsAsync = ref.watch(todaySessionsProvider);
 
+    // Zen Modunda sayaç çalışırken tam ekran immersive görünüm
+    if (_selectedFocusMode == 'zen' && _isRunning) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0C101A),
+        body: _buildZenRunningFullscreen(user, accentColor),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
         title: Text(
-          'Pomodoro',
+          _selectedFocusMode == 'zen' ? 'Zen Odak' : 'Pomodoro İstasyonu',
           style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history_rounded, color: Colors.white70),
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (ctx) => const SessionHistorySheet(),
+              );
+            },
+            tooltip: 'Seans Geçmişi',
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Track Info Bar
+            // 1. Mod Anahtarı: Savaş Modu | Zen Modu
+            if (_selectedFocusArea != 'fitness') ...[
+              _buildFocusModeSegmentedSwitch(),
+              const SizedBox(height: 6),
+            ],
+
+            // 2. Track Info Bar
             Text(
               _isMusicPlaying
                   ? "Active Soft Track: ${_playlist[_currentTrackIndex]['name']}"
@@ -3303,367 +4269,24 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 color: AppColors.secondary,
-                fontSize: 13,
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 12),
-            // Focus Area Selector
+            const SizedBox(height: 10),
+
+            // 3. Focus Area Selector
             _buildFocusAreaSelector(),
             const SizedBox(height: 12),
 
-            if (_selectedFocusArea != 'fitness') _buildDeepFocusToggle(),
-
+            // 4. Mod Görünümleri: Fitness vs Zen vs Savaş
             if (_selectedFocusArea == 'fitness') ...[
               _buildWorkoutAssistant(user.uid, user.level),
+            ] else if (_selectedFocusMode == 'zen') ...[
+              _buildZenIdleView(user, accentColor),
             ] else ...[
-              // Mode indicator
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                decoration: BoxDecoration(
-                  color: accentColor.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: accentColor.withValues(alpha: 0.4)),
-                ),
-                child: Text(
-                  _isBreak ? '☕ Mola Zamanı' : '⚡ Odak Modu',
-                  style: GoogleFonts.inter(color: accentColor, fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Timer ring
-              AnimatedBuilder(
-                animation: _pulseController,
-                builder: (context, child) {
-                  final glow = _isRunning ? (_pulseController.value * 0.25 + 0.1) : 0.05;
-                  final scale = _isRunning ? (1.0 + (_pulseController.value * 0.015)) : 1.0;
-                  return Transform.scale(
-                    scale: scale,
-                    child: Container(
-                      width: 210,
-                      height: 210,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: accentColor.withValues(alpha: 0.18), width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: accentColor.withValues(alpha: glow),
-                            blurRadius: 36,
-                            spreadRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: child,
-                    ),
-                  );
-                },
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    SizedBox(
-                      width: 210,
-                      height: 210,
-                      child: CircularProgressIndicator(
-                        value: _progress,
-                        backgroundColor: AppColors.cardBackground,
-                        valueColor: AlwaysStoppedAnimation<Color>(accentColor),
-                        strokeWidth: 9,
-                        strokeCap: StrokeCap.round,
-                      ),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _timeString,
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontSize: 48,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 2,
-                          ),
-                        ),
-                        Text(
-                          _isBreak ? 'Mola' : 'Çalışma',
-                          style: GoogleFonts.inter(color: accentColor, fontSize: 13, fontWeight: FontWeight.w600),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Main Screen Timer Controls
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    onPressed: _reset,
-                    icon: const Icon(Icons.refresh_rounded, size: 28, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(width: 16),
-                  GestureDetector(
-                    onTap: _startPause,
-                    child: Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [accentColor, accentColor.withValues(alpha: 0.7)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        boxShadow: [
-                          BoxShadow(color: accentColor.withValues(alpha: 0.35), blurRadius: 15, spreadRadius: 1),
-                        ],
-                      ),
-                      child: Icon(
-                        _isRunning ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 32,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  IconButton(
-                    onPressed: _skip,
-                    icon: const Icon(Icons.skip_next_rounded, size: 28, color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(width: 12),
-                  IconButton(
-                    onPressed: () => _toggleImmersive(true),
-                    icon: const Icon(Icons.fullscreen_rounded, size: 28, color: AppColors.secondary),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              _buildCategoryAssistantCard(),
-              const SizedBox(height: 24),
-
-              // Custom Durations Row Selection Chips
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Çalışma Süresi (Dakika)',
-                      style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [1, 15, 25, 45, 60].map((mins) {
-                        final isSel = _selectedWorkDuration == mins;
-                        return Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                            child: ChoiceChip(
-                              showCheckmark: false,
-                              label: Text('$mins dk'),
-                              selected: isSel,
-                              onSelected: (_) => _selectWorkDuration(mins),
-                              backgroundColor: AppColors.background,
-                              selectedColor: AppColors.primary.withValues(alpha: 0.2),
-                              labelStyle: GoogleFonts.inter(
-                                color: isSel ? AppColors.primary : AppColors.textSecondary,
-                                fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                fontSize: 12,
-                              ),
-                              side: BorderSide(
-                                color: isSel ? AppColors.primary : AppColors.primary.withValues(alpha: 0.1),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Mola Süresi (Dakika)',
-                      style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [5, 10, 15].map((mins) {
-                        final isSel = _selectedBreakDuration == mins;
-                        return Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                            child: ChoiceChip(
-                              showCheckmark: false,
-                              label: Text('$mins dk'),
-                              selected: isSel,
-                              onSelected: (_) => _selectBreakDuration(mins),
-                              backgroundColor: AppColors.background,
-                              selectedColor: AppColors.secondary.withValues(alpha: 0.2),
-                              labelStyle: GoogleFonts.inter(
-                                color: isSel ? AppColors.secondary : AppColors.textSecondary,
-                                fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                fontSize: 12,
-                              ),
-                              side: BorderSide(
-                                color: isSel ? AppColors.secondary : AppColors.secondary.withValues(alpha: 0.1),
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ],
-                ),
-              ),
+              _buildBattleModeView(user, accentColor),
             ],
-            const SizedBox(height: 16),
-
-            // Music Controls Card
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.cardBackground,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.secondary.withValues(alpha: 0.15)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            _playlist[_currentTrackIndex]['icon'] as IconData? ?? Icons.music_note_rounded,
-                            color: _isMusicPlaying ? AppColors.secondary : AppColors.textSecondary,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _playlist[_currentTrackIndex]['name'] as String,
-                                style: GoogleFonts.inter(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              Text(
-                                _isMusicPlaying ? 'Çalıyor (Kesintisiz Döngü)' : 'Duraklatıldı',
-                                style: GoogleFonts.inter(
-                                  color: _isMusicPlaying ? AppColors.secondary : AppColors.textSecondary,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.skip_previous_rounded, color: Colors.white, size: 22),
-                            onPressed: _prevTrack,
-                            tooltip: 'Önceki Parça',
-                          ),
-                          IconButton(
-                            icon: Icon(
-                              _isMusicPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
-                              color: AppColors.secondary,
-                              size: 32,
-                            ),
-                            onPressed: _toggleMusic,
-                            tooltip: _isMusicPlaying ? 'Durdur' : 'Çal',
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 22),
-                            onPressed: _nextTrack,
-                            tooltip: 'Sonraki Parça',
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  // Ambient Track Selector Chips
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: List.generate(_playlist.length, (i) {
-                        final track = _playlist[i];
-                        final isSel = _currentTrackIndex == i;
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 6.0),
-                          child: InkWell(
-                            onTap: () => _selectTrack(i),
-                            borderRadius: BorderRadius.circular(10),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: isSel ? AppColors.secondary.withValues(alpha: 0.2) : AppColors.background,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: isSel ? AppColors.secondary : Colors.white10,
-                                  width: 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    track['icon'] as IconData? ?? Icons.music_note,
-                                    size: 14,
-                                    color: isSel ? AppColors.secondary : AppColors.textSecondary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    track['name'] as String,
-                                    style: GoogleFonts.inter(
-                                      color: isSel ? Colors.white : AppColors.textSecondary,
-                                      fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      const Icon(Icons.volume_down_rounded, color: AppColors.textSecondary, size: 16),
-                      Expanded(
-                        child: Slider(
-                          value: _volume,
-                          min: 0.0,
-                          max: 1.0,
-                          activeColor: AppColors.secondary,
-                          inactiveColor: AppColors.background,
-                          onChanged: _setVolume,
-                        ),
-                      ),
-                      const Icon(Icons.volume_up_rounded, color: AppColors.textSecondary, size: 16),
-                    ],
-                  ),
-                ],
-              ),
-            ),
             const SizedBox(height: 20),
 
             // Horizontal Completed Sessions List Header

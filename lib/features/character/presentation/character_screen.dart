@@ -13,6 +13,8 @@ import '../../quests/data/quest_model.dart';
 import '../../pomodoro/providers/pomodoro_provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../stats/presentation/stats_screen.dart';
+import '../../shop/presentation/companion_widget.dart';
+import '../../shop/data/companion_data.dart';
 import 'character_painter.dart';
 import 'wardrobe_screen.dart';
 
@@ -146,184 +148,285 @@ class CharacterScreen extends ConsumerWidget {
 
   Widget _buildCharacterHero(BuildContext context, WidgetRef ref, UserModel user) {
     final xpRatio = user.xpToNextLevel > 0 ? (user.xp / user.xpToNextLevel).clamp(0.0, 1.0) : 0.0;
+    final companion = user.equippedCompanion != null ? CompanionData.getById(user.equippedCompanion!) : null;
 
     return GlassmorphicCard(
-      borderColor: AppColors.primary,
-      padding: const EdgeInsets.all(24),
+      borderColor: AppColors.primary.withValues(alpha: 0.35),
+      padding: const EdgeInsets.all(18),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // RPG Level Badge
-          Container(
-            width: 100,
-            height: 100,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  AppColors.primary,
-                  AppColors.secondary,
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.5),
-                  blurRadius: 24,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'LV',
-                    style: GoogleFonts.inter(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white.withValues(alpha: 0.7),
-                    ),
-                  ),
-                  Text(
-                    '${user.level}',
-                    style: GoogleFonts.inter(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                      height: 1.0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          // Character Name
-          Text(
-            user.displayName,
-            style: GoogleFonts.inter(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          // Character Title/Status
+          // Üst Bölüm: Sol Tarafta Karakter Sahnesi, Sağ Tarafta Savaşçı Profili
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                'Legendary Ascender',
-                style: GoogleFonts.inter(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.secondary,
-                  letterSpacing: 1.0,
+              // SOL SÜTUN: Karakter (Yuvarlak çerçeve yok! Tam boy ayakta serbest durur)
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const WardrobeScreen()),
+                  );
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Stack(
+                      alignment: Alignment.bottomCenter,
+                      clipBehavior: Clip.none,
+                      children: [
+                        // Karakter altı hafif mistik zemin aurası/gölgesi
+                        Container(
+                          width: 70,
+                          height: 14,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.secondary.withValues(alpha: 0.35),
+                                blurRadius: 18,
+                                spreadRadius: 3,
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Tam boy ayakta karakter (kafası, şapkası, bedeni, pantolonu ve çizmeleri tam görünür)
+                        SizedBox(
+                          width: 80,
+                          height: 125,
+                          child: CharacterAvatar(
+                            equippedItems: user.equippedItems,
+                            width: 80,
+                            height: 125,
+                          ),
+                        ),
+                        // Varsa kuşanılmış yoldaş
+                        if (companion != null)
+                          Positioned(
+                            right: -10,
+                            bottom: 6,
+                            child: CompanionWidget(
+                              companion: companion,
+                              size: 28,
+                              showNameTag: false,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    // Gardırop butonu
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondary.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.checkroom_rounded, color: AppColors.secondary, size: 12),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Gardırop',
+                            style: GoogleFonts.inter(
+                              color: AppColors.secondary,
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 4),
-              const Icon(Icons.emoji_events_rounded, color: AppColors.gold, size: 14),
+
+              const SizedBox(width: 16),
+
+              // SAĞ SÜTUN: Savaşçı Bilgileri & Durumu
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Seviye Rozeti ve İsim
+                    Row(
+                      children: [
+                        // Kompakt Şık Level Rozeti
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppColors.primary, AppColors.secondary],
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.primary.withValues(alpha: 0.4),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            'LV ${user.level}',
+                            style: GoogleFonts.inter(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 12,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            user.displayName,
+                            style: GoogleFonts.inter(
+                              fontSize: 19,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+
+                    // Unvan & Varsa Kulüp Etiketi
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      children: [
+                        Text(
+                          user.title.isNotEmpty ? user.title : 'Yeni Savaşçı',
+                          style: GoogleFonts.inter(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.secondary,
+                          ),
+                        ),
+                        if (user.clubTag != null && user.clubTag!.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '[${user.clubTag}]',
+                              style: GoogleFonts.inter(
+                                color: AppColors.secondary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // Seri ve Kalkan Göstergesi
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.local_fire_department, color: Colors.orange, size: 13),
+                              const SizedBox(width: 3),
+                              Text(
+                                '${user.streak} Gün Seri',
+                                style: GoogleFonts.inter(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (user.streakShields > 0) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.cyan.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.shield_rounded, color: Colors.cyanAccent, size: 12),
+                                const SizedBox(width: 3),
+                                Text(
+                                  '${user.streakShields}',
+                                  style: GoogleFonts.inter(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // Odak Alanları Rozetleri
+                    _buildFocusAreasRow(context, ref, user),
+                  ],
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 20),
-          // Live Character Avatar with tap to open wardrobe
-          GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const WardrobeScreen()),
-              );
-            },
-            child: Container(
-              width: 90,
-              height: 90,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.cardBackground,
-                border: Border.all(color: AppColors.secondary.withValues(alpha: 0.3), width: 1.5),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.secondary.withValues(alpha: 0.25),
-                    blurRadius: 15,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              alignment: Alignment.center,
-              child: CharacterAvatar(
-                equippedItems: user.equippedItems,
-                size: 80,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.checkroom_rounded, color: AppColors.secondary, size: 13),
-              const SizedBox(width: 4),
-              Text(
-                'Giydir / Gardırop',
-                style: GoogleFonts.inter(
-                  color: AppColors.secondary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
+
+          const SizedBox(height: 14),
+          const Divider(color: Colors.white10, height: 1),
           const SizedBox(height: 12),
-          Text(
-            user.displayName,
-            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22),
-          ),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.secondary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppColors.secondary.withValues(alpha: 0.4)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.shield_rounded, color: AppColors.secondary, size: 12),
-                const SizedBox(width: 6),
-                Text(
-                  'Level ${user.level} — ${user.title}',
-                  style: GoogleFonts.inter(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          _buildFocusAreasRow(context, ref, user),
-          const SizedBox(height: 16),
-          // XP Bar
+
+          // Alt Bölüm: Deneyim (XP) İlerleme Çubuğu
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Deneyim (XP)', style: GoogleFonts.inter(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 12)),
-                  Text('${user.xp} / ${user.xpToNextLevel}', style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12)),
+                  Text(
+                    'Deneyim (XP)',
+                    style: GoogleFonts.inter(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 11),
+                  ),
+                  Text(
+                    '${user.xp} / ${user.xpToNextLevel} XP',
+                    style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Stack(
                 children: [
-                  Container(height: 10, decoration: BoxDecoration(color: AppColors.background, borderRadius: BorderRadius.circular(5))),
+                  Container(
+                    height: 8,
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
                   FractionallySizedBox(
                     widthFactor: xpRatio,
                     child: Container(
-                      height: 10,
+                      height: 8,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(colors: [AppColors.success, AppColors.secondary]),
-                        borderRadius: BorderRadius.circular(5),
-                        boxShadow: [BoxShadow(color: AppColors.success.withValues(alpha: 0.6), blurRadius: 8, spreadRadius: 1)],
+                        borderRadius: BorderRadius.circular(4),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.success.withValues(alpha: 0.5),
+                            blurRadius: 6,
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -370,13 +473,13 @@ class CharacterScreen extends ConsumerWidget {
     }
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.start,
       children: [
         Expanded(
           child: Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 6,
-            runSpacing: 6,
+            alignment: WrapAlignment.start,
+            spacing: 5,
+            runSpacing: 5,
             children: [
               if (areas.isEmpty)
                 Text(
@@ -387,10 +490,10 @@ class CharacterScreen extends ConsumerWidget {
                 ...areas.map((id) {
                   final color = getColor(id);
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
                     ),
                     child: Row(
@@ -409,11 +512,11 @@ class CharacterScreen extends ConsumerWidget {
             ],
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 6),
         IconButton(
           constraints: const BoxConstraints(),
           padding: EdgeInsets.zero,
-          icon: const Icon(Icons.settings_suggest_rounded, color: AppColors.secondary, size: 20),
+          icon: const Icon(Icons.settings_suggest_rounded, color: AppColors.secondary, size: 18),
           onPressed: () => _showEditFocusAreasSheet(context, ref, user),
         ),
       ],
