@@ -30,6 +30,7 @@ class UserModel {
   final String? clubName;
   final String? clubTag;
   final bool hasClaimedLegacyStats;
+  final List<String> unlockedTitles;
 
   const UserModel({
     required this.uid,
@@ -61,6 +62,7 @@ class UserModel {
     this.clubName,
     this.clubTag,
     this.hasClaimedLegacyStats = false,
+    this.unlockedTitles = const ['Acemi Savaşçı'],
   });
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
@@ -98,6 +100,9 @@ class UserModel {
       clubName: map['clubName'] as String?,
       clubTag: map['clubTag'] as String?,
       hasClaimedLegacyStats: map['hasClaimedLegacyStats'] as bool? ?? false,
+      unlockedTitles: map['unlockedTitles'] != null
+          ? List<String>.from(map['unlockedTitles'])
+          : [map['title'] as String? ?? 'Acemi Savaşçı'],
     );
   }
 
@@ -131,6 +136,7 @@ class UserModel {
         'clubName': clubName,
         'clubTag': clubTag,
         'hasClaimedLegacyStats': hasClaimedLegacyStats,
+        'unlockedTitles': unlockedTitles,
       };
 
   /// Haftalık sıfırlama sınırını kontrol ederek geçerli haftadaki efektif XP'yi döner.
@@ -172,6 +178,7 @@ class UserModel {
     String? clubName,
     String? clubTag,
     bool? hasClaimedLegacyStats,
+    List<String>? unlockedTitles,
   }) {
     return UserModel(
       uid: uid,
@@ -203,6 +210,7 @@ class UserModel {
       clubName: clubName ?? this.clubName,
       clubTag: clubTag ?? this.clubTag,
       hasClaimedLegacyStats: hasClaimedLegacyStats ?? this.hasClaimedLegacyStats,
+      unlockedTitles: unlockedTitles ?? this.unlockedTitles,
     );
   }
 }

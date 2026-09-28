@@ -23,6 +23,8 @@ import '../../shop/data/companion_data.dart';
 import '../../shop/presentation/companion_widget.dart';
 import '../../leaderboard/presentation/leaderboard_screen.dart';
 import '../../user/data/user_repository.dart';
+import '../../../core/services/focus_area_stat_service.dart';
+import '../../character/presentation/widgets/title_selection_sheet.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -276,8 +278,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 const SizedBox(height: 20),
                 _buildQuickActionsSection(context, user),
                 const SizedBox(height: 20),
-                _buildWeeklyLeagueCard(context, user),
-                const SizedBox(height: 20),
                 
                 // Character Stats Panel (Using GlassmorphicCard and AnimatedStatBars)
                 ScaleTransition(
@@ -289,15 +289,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 ),
                 const SizedBox(height: 20),
 
-                
-                // Daily Quests Panel
-                _buildSectionTitle('Günlük Görevler', Icons.local_fire_department),
-                const SizedBox(height: 12),
+                // Instant Bounties (Anlık Görevler)
                 SlideTransition(
                   position: _questsSlide,
                   child: FadeTransition(
                     opacity: _introFade,
-                    child: _buildDailyQuestsPanel(user.uid, dailyQuestsAsync),
+                    child: _buildInstantBountiesSection(user.uid, dailyQuestsAsync),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -453,15 +450,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                   children: [
                     Row(
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: AppColors.secondary.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.secondary.withValues(alpha: 0.4)),
+                        InkWell(
+                          onTap: () => TitleSelectionSheet.show(context, user),
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.secondary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppColors.secondary.withValues(alpha: 0.4)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('LVL ${user.level} · ${user.title}',
+                                    style: GoogleFonts.inter(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 12)),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.edit_rounded, color: AppColors.secondary, size: 11),
+                              ],
+                            ),
                           ),
-                          child: Text('LVL ${user.level} · ${user.title}',
-                              style: GoogleFonts.inter(color: AppColors.secondary, fontWeight: FontWeight.bold, fontSize: 12)),
                         ),
                         const Spacer(),
                         InkWell(
@@ -550,6 +558,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         !hasAlreadyAllStats &&
         user.statPoints == 0 &&
         user.level > 1;
+
+    final visibleStats = FocusAreaStatService.getVisibleStats(user.focusAreas);
 
     return GlassmorphicCard(
       borderColor: availablePoints > 0 ? AppColors.gold : AppColors.secondary,
@@ -657,33 +667,41 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             ),
           ],
           const SizedBox(height: 16),
-          AnimatedStatBar(
-            label: 'Odak (Focus)',
-            value: user.stats['focus'] ?? 0,
-            maxValue: 100,
-            color: AppColors.statFocus,
-          ),
-          const SizedBox(height: 12),
-          AnimatedStatBar(
-            label: 'Enerji (Energy)',
-            value: user.stats['energy'] ?? 0,
-            maxValue: 100,
-            color: AppColors.statEnergy,
-          ),
-          const SizedBox(height: 12),
-          AnimatedStatBar(
-            label: 'Bilgi (Knowledge)',
-            value: user.stats['knowledge'] ?? 0,
-            maxValue: 100,
-            color: AppColors.statKnowledge,
-          ),
-          const SizedBox(height: 12),
-          AnimatedStatBar(
-            label: 'Güç (Strength)',
-            value: user.stats['strength'] ?? 0,
-            maxValue: 100,
-            color: AppColors.statStrength,
-          ),
+          if (visibleStats.contains('focus')) ...[
+            AnimatedStatBar(
+              label: 'Odak (Focus)',
+              value: user.stats['focus'] ?? 0,
+              maxValue: 100,
+              color: AppColors.statFocus,
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (visibleStats.contains('energy')) ...[
+            AnimatedStatBar(
+              label: 'Enerji (Energy)',
+              value: user.stats['energy'] ?? 0,
+              maxValue: 100,
+              color: AppColors.statEnergy,
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (visibleStats.contains('knowledge')) ...[
+            AnimatedStatBar(
+              label: 'Bilgi (Knowledge)',
+              value: user.stats['knowledge'] ?? 0,
+              maxValue: 100,
+              color: AppColors.statKnowledge,
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (visibleStats.contains('strength')) ...[
+            AnimatedStatBar(
+              label: 'Güç (Strength)',
+              value: user.stats['strength'] ?? 0,
+              maxValue: 100,
+              color: AppColors.statStrength,
+            ),
+          ],
         ],
       ),
     );
@@ -699,8 +717,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           builder: (context, ref, child) {
             final liveUser = ref.watch(currentUserProvider).value ?? user;
             final remainingPoints = liveUser.statPoints;
+            final visibleStats = FocusAreaStatService.getVisibleStats(liveUser.focusAreas);
 
-            final statConfigs = [
+            final allStatConfigs = [
               {
                 'key': 'focus',
                 'name': 'Odak (Focus)',
@@ -730,6 +749,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                 'color': AppColors.statStrength,
               },
             ];
+
+            final statConfigs = allStatConfigs.where((cfg) => visibleStats.contains(cfg['key'])).toList();
 
             return Container(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
@@ -916,74 +937,339 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
   }
 
-  Widget _buildDailyQuestsPanel(String uid, AsyncValue<List<QuestModel>> dailyQuestsAsync) {
-    return dailyQuestsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-      error: (err, stack) => Center(
-        child: Text('Görevler yüklenirken hata oluştu', style: GoogleFonts.inter(color: AppColors.error)),
-      ),
-      data: (quests) {
-        final activeQuests = quests.where((q) => !q.isCompleted).toList();
-
-        if (activeQuests.isEmpty) {
-          final allCompleted = quests.isNotEmpty;
-          return GlassmorphicCard(
-            borderColor: allCompleted ? AppColors.success : AppColors.primary,
-            child: Center(
-              child: Text(
-                allCompleted ? 'Bugünün tüm görevlerini tamamladın! 🏆' : 'Bugün için görev bulunmuyor!',
-                style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13),
-              ),
-            ),
-          );
-        }
-
-        return Column(
-          children: activeQuests.map((q) => _buildQuestCard(uid, q)).toList(),
-        );
-      },
-    );
-  }
-
-  Widget _buildQuestCard(String uid, QuestModel quest) {
-    final iconData = QuestModel.iconFromName(quest.iconName);
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.primary.withValues(alpha: 0.15),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(iconData, color: AppColors.primary, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildInstantBountiesSection(String uid, AsyncValue<List<QuestModel>> dailyQuestsAsync) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
               children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: AppColors.gold.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.bolt_rounded, color: AppColors.gold, size: 18),
+                ),
+                const SizedBox(width: 8),
                 Text(
-                  quest.title,
+                  'Anlık Görevler',
                   style: GoogleFonts.inter(
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text('+${quest.xpReward} XP', style: GoogleFonts.inter(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.bold)),
               ],
             ),
+            InkWell(
+              onTap: () {
+                ref.read(shellIndexProvider.notifier).setIndex(1); // Quests tab
+              },
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Row(
+                  children: [
+                    Text(
+                      'Tüm Görevler',
+                      style: GoogleFonts.inter(
+                        color: AppColors.secondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(Icons.arrow_forward_ios_rounded, color: AppColors.secondary, size: 11),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        dailyQuestsAsync.when(
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16.0),
+              child: CircularProgressIndicator(color: AppColors.primary),
+            ),
+          ),
+          error: (err, stack) => Center(
+            child: Text('Görevler yüklenemedi', style: GoogleFonts.inter(color: AppColors.error)),
+          ),
+          data: (quests) {
+            final activeQuests = quests.where((q) => !q.isCompleted).take(2).toList();
+
+            if (activeQuests.isEmpty) {
+              final allCompleted = quests.isNotEmpty;
+              return GlassmorphicCard(
+                borderColor: allCompleted ? AppColors.success.withValues(alpha: 0.5) : AppColors.primary,
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: (allCompleted ? AppColors.success : AppColors.primary).withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        allCompleted ? Icons.check_circle_rounded : Icons.star_rounded,
+                        color: allCompleted ? AppColors.success : AppColors.primary,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            allCompleted ? 'Bugünün tüm anlık avları tamamlandı! 🏆' : 'Yeni anlık görevler bekleniyor!',
+                            style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            allCompleted
+                                ? 'Harika iş! Ekstra haftalık hedefler için Görevler sekmesine göz at.'
+                                : 'Odaklanma seanslarına başlayarak XP kazanabilirsin.',
+                            style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            return Column(
+              children: activeQuests.map((q) => _buildInstantBountyCard(uid, q)).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInstantBountyCard(String uid, QuestModel quest) {
+    final iconData = QuestModel.iconFromName(quest.iconName);
+    final statColor = FocusAreaStatService.getStatColor(quest.statBoost);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: AppColors.primary.withValues(alpha: 0.25),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.05),
+            blurRadius: 10,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Icon
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: statColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(iconData, color: statColor, size: 20),
+              ),
+              const SizedBox(width: 10),
+
+              // Title and Stat tag
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.gold.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.flash_on_rounded, color: AppColors.gold, size: 10),
+                              const SizedBox(width: 2),
+                              Text(
+                                'ANLIK AV',
+                                style: GoogleFonts.inter(
+                                  color: AppColors.gold,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: statColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '+1 ${FocusAreaStatService.getStatShortCode(quest.statBoost)}',
+                            style: GoogleFonts.inter(
+                              color: statColor,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      quest.title,
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 8),
+
+              // Reward Badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      '+${quest.xpReward} XP',
+                      style: GoogleFonts.inter(
+                        color: AppColors.success,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                      ),
+                    ),
+                    Text(
+                      '+${quest.xpReward} 🪙',
+                      style: GoogleFonts.inter(
+                        color: Colors.amber,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 9,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Bottom Action / Progress Row
+          Row(
+            children: [
+              // Progress Bar & text
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'İlerleme',
+                          style: GoogleFonts.inter(
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        Text(
+                          quest.unit.isNotEmpty && quest.unit != 'adet'
+                              ? '${quest.currentValue}/${quest.targetValue} ${quest.unit}'
+                              : '${(quest.progress * 100).toInt()}%',
+                          style: GoogleFonts.inter(
+                            color: statColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: quest.progress.clamp(0.0, 1.0),
+                        minHeight: 6,
+                        backgroundColor: Colors.white10,
+                        valueColor: AlwaysStoppedAnimation<Color>(statColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 14),
+
+              // Quick Focus Button
+              InkWell(
+                onTap: () {
+                  ref.read(shellIndexProvider.notifier).setIndex(2); // Pomodoro
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondary.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.secondary.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.timer_rounded, color: AppColors.secondary, size: 14),
+                      const SizedBox(width: 5),
+                      Text(
+                        'Odaklan',
+                        style: GoogleFonts.inter(
+                          color: AppColors.secondary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1060,38 +1346,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     );
   }
 
-  static const List<String> _quotes = [
-    "Disiplin, hedefleriniz ile başarı arasındaki köprüdür.",
-    "Zorluklar, karakterine seviye atlatmak için çıkan boss'lardır.",
-    "Bugün atacağın küçük bir adım, yarınki büyük zaferin temelidir.",
-    "Kendi hikayenin kahramanı ol. Bugün seviye atlama günü!",
-    "Odaklan ve içindeki gücü serbest bırak.",
-    "Başarı, her gün sabırla tekrarlanan küçük çabaların toplamıdır.",
-    "Dünün yenilgileri, bugünün tecrübeleridir.",
-    "Sadece başla. Gerisi odaklandıkça kendiliğinden gelecektir.",
-    "Mükemmellik bir eylem değil, bir alışkanlıktır.",
-    "Üşenme, erteleme, vazgeçme. Bugün senin günün!",
-    "Her yeni gün, yeni bir quest ve yeni bir başlangıçtır.",
-    "Zirveye uçarak değil, adım adım tırmanarak ulaşılır.",
-    "Hatalar, denediğini ve geliştiğini gösteren kanıtlardır.",
-    "Bugünkü disiplinin, yarınki özgürlüğündür.",
-    "Hayal etmek yetmez, harekete geçmek gerekir.",
-    "Karakterinin sınırlarını aş ve sınırlarını yeniden tanımla.",
-    "En iyi zaman şimdi. İkinci en iyi zaman ise yarındır.",
-    "Büyük şeyler, küçük şeylerin bir araya getirilmesiyle oluşur.",
-    "Focus ol, dünyayı sessize al ve işine odaklan.",
-    "Asla pes etmeyen birini yenmek imkansızdır.",
-    "Akıttığın her damla ter, karakterine eklenen bir stat puanıdır.",
-    "Fırtınanın geçmesini bekleme, yağmurda dans etmeyi öğren.",
-    "Kendine inan. Eğer sen inanmazsan, kimse inanmaz.",
-    "Her pomodoro seansı, geleceğine yapılan bir yatırımdır.",
-    "Disiplin acısı geçicidir, pişmanlık acısı ise kalıcı."
-  ];
 
-  String _getQuoteOfTheDay() {
-    final dayOfYear = DateTime.now().difference(DateTime(DateTime.now().year, 1, 1)).inDays;
-    return _quotes[dayOfYear % _quotes.length];
-  }
 
   String _getGreeting() {
     final hour = DateTime.now().hour;
@@ -1109,42 +1364,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   Widget _buildGreetingSection(UserModel user) {
     return GlassmorphicCard(
       borderColor: AppColors.primary.withValues(alpha: 0.3),
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
       child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ShaderMask(
-                  shaderCallback: (bounds) => const LinearGradient(
-                    colors: [AppColors.secondary, AppColors.success],
-                  ).createShader(bounds),
-                  child: Text(
-                    _getGreeting(),
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '"${_getQuoteOfTheDay()}"',
-                  style: GoogleFonts.inter(
-                    fontSize: 12,
-                    fontStyle: FontStyle.italic,
-                    color: AppColors.textSecondary,
-                    height: 1.4,
-                  ),
-                ),
-              ],
+          ShaderMask(
+            shaderCallback: (bounds) => const LinearGradient(
+              colors: [AppColors.secondary, AppColors.success],
+            ).createShader(bounds),
+            child: Text(
+              _getGreeting(),
+              style: GoogleFonts.inter(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ),
             ),
           ),
-          const SizedBox(width: 12),
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: AppColors.primary.withValues(alpha: 0.15),
@@ -1153,7 +1391,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             child: const Icon(
               Icons.auto_awesome_rounded,
               color: AppColors.secondary,
-              size: 24,
+              size: 20,
             ),
           ),
         ],
@@ -1312,141 +1550,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildWeeklyLeagueCard(BuildContext context, UserModel user) {
-    Color leagueColor;
-    String leagueName;
-    String badgeEmoji;
-    int nextGoal;
-
-    switch (user.leagueTier) {
-      case 'elmas':
-        leagueColor = const Color(0xFF67E8F9);
-        leagueName = 'Elmas / Elit Lig';
-        badgeEmoji = '💎';
-        nextGoal = 5000;
-        break;
-      case 'altin':
-        leagueColor = const Color(0xFFFFD700);
-        leagueName = 'Altın Lig';
-        badgeEmoji = '🥇';
-        nextGoal = 2500;
-        break;
-      case 'gumus':
-        leagueColor = const Color(0xFFC0C0C0);
-        leagueName = 'Gümüş Lig';
-        badgeEmoji = '🥈';
-        nextGoal = 1200;
-        break;
-      case 'bronz':
-      default:
-        leagueColor = const Color(0xFFCD7F32);
-        leagueName = 'Bronz Lig';
-        badgeEmoji = '🥉';
-        nextGoal = 500;
-        break;
-    }
-
-    final double progress = (user.weeklyXp / nextGoal).clamp(0.0, 1.0);
-
-    return InkWell(
-      onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const LeaderboardScreen()));
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: leagueColor.withValues(alpha: 0.35)),
-          boxShadow: [
-            BoxShadow(
-              color: leagueColor.withValues(alpha: 0.12),
-              blurRadius: 12,
-              spreadRadius: 1,
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Text(badgeEmoji, style: const TextStyle(fontSize: 22)),
-                    const SizedBox(width: 8),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          leagueName,
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                        Text(
-                          'Haftalık Sıralama & Podyum',
-                          style: GoogleFonts.inter(color: Colors.white54, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: leagueColor.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: leagueColor.withValues(alpha: 0.4)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Podyumu Gör',
-                        style: GoogleFonts.inter(color: leagueColor, fontWeight: FontWeight.bold, fontSize: 11),
-                      ),
-                      const SizedBox(width: 2),
-                      Icon(Icons.chevron_right_rounded, color: leagueColor, size: 16),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${user.weeklyXp} XP / $nextGoal XP',
-                  style: GoogleFonts.inter(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  '${(progress * 100).toInt()}%',
-                  style: GoogleFonts.inter(color: leagueColor, fontSize: 12, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progress,
-                backgroundColor: Colors.white12,
-                valueColor: AlwaysStoppedAnimation<Color>(leagueColor),
-                minHeight: 6,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

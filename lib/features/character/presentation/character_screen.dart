@@ -17,6 +17,9 @@ import '../../shop/presentation/companion_widget.dart';
 import '../../shop/data/companion_data.dart';
 import 'character_painter.dart';
 import 'wardrobe_screen.dart';
+import '../../../core/services/focus_area_stat_service.dart';
+import 'widgets/focus_area_edit_sheet.dart';
+import 'widgets/title_selection_sheet.dart';
 
 class CharacterScreen extends ConsumerWidget {
   const CharacterScreen({super.key});
@@ -107,7 +110,7 @@ class CharacterScreen extends ConsumerWidget {
               children: [
                 _revealSection(order: 0, child: _buildCharacterHero(context, ref, user)),
                 const SizedBox(height: 20),
-                _revealSection(order: 1, child: _buildStatsSection(user)),
+                _revealSection(order: 1, child: _buildStatsSection(context, ref, user)),
                 const SizedBox(height: 20),
                 _revealSection(order: 2, child: _buildAchievementsSection(unlockedAchievements)),
                 const SizedBox(height: 20),
@@ -298,12 +301,31 @@ class CharacterScreen extends ConsumerWidget {
                       crossAxisAlignment: WrapCrossAlignment.center,
                       spacing: 6,
                       children: [
-                        Text(
-                          user.title.isNotEmpty ? user.title : 'Yeni Savaşçı',
-                          style: GoogleFonts.inter(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.secondary,
+                        InkWell(
+                          onTap: () => TitleSelectionSheet.show(context, user),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.secondary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.secondary.withValues(alpha: 0.35)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  user.title.isNotEmpty ? user.title : 'Yeni Savaşçı',
+                                  style: GoogleFonts.inter(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.secondary,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.edit_rounded, color: AppColors.secondary, size: 12),
+                              ],
+                            ),
                           ),
                         ),
                         if (user.clubTag != null && user.clubTag!.isNotEmpty)
@@ -524,160 +546,15 @@ class CharacterScreen extends ConsumerWidget {
   }
 
   void _showEditFocusAreasSheet(BuildContext context, WidgetRef ref, UserModel user) {
-    final List<String> currentSelected = List.from(user.focusAreas.where((a) => a != 'skipped'));
-    
-    final List<Map<String, dynamic>> options = [
-      {'id': 'academic', 'label': 'Ders Çalışma & Akademi', 'icon': Icons.school_rounded, 'color': AppColors.statKnowledge},
-      {'id': 'fitness', 'label': 'Spor & Sağlıklı Yaşam', 'icon': Icons.fitness_center_rounded, 'color': AppColors.statStrength},
-      {'id': 'reading', 'label': 'Kişisel Gelişim & Okuma', 'icon': Icons.menu_book_rounded, 'color': AppColors.primary},
-      {'id': 'coding', 'label': 'Yazılım & Kariyer / İş', 'icon': Icons.code_rounded, 'color': AppColors.statFocus},
-    ];
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 20),
-                      decoration: BoxDecoration(
-                        color: AppColors.textSecondary.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-                  Text(
-                    'ODAK ALANLARINI DÜZENLE',
-                    style: GoogleFonts.inter(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Seçtiğiniz odak alanlarına göre günlük ve haftalık görevleriniz yarından itibaren güncellenecektir.',
-                    style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
-                  ),
-                  const SizedBox(height: 20),
-                  ...options.map((opt) {
-                    final id = opt['id'] as String;
-                    final isSelected = currentSelected.contains(id);
-                    final color = opt['color'] as Color;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8.0),
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            if (isSelected) {
-                              currentSelected.remove(id);
-                            } else {
-                              currentSelected.add(id);
-                            }
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: isSelected ? color.withValues(alpha: 0.1) : AppColors.cardBackground,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isSelected ? color : AppColors.primary.withValues(alpha: 0.1),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(opt['icon'] as IconData, color: color, size: 20),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  opt['label'] as String,
-                                  style: GoogleFonts.inter(
-                                    color: Colors.white,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                              Icon(
-                                isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
-                                color: isSelected ? color : AppColors.textSecondary,
-                                size: 20,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: Text(
-                            'İptal',
-                            style: GoogleFonts.inter(color: AppColors.textSecondary),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
-                          onPressed: () async {
-                            final finalAreas = currentSelected.isEmpty ? ['skipped'] : currentSelected;
-                            await ref.read(userRepositoryProvider).updateFocusAreas(user.uid, finalAreas);
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Odak alanları güncellendi! Yarından itibaren geçerli olacak. 🚀'),
-                                  backgroundColor: AppColors.success,
-                                ),
-                              );
-                            }
-                          },
-                          child: Text(
-                            'Kaydet',
-                            style: GoogleFonts.inter(fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
+    FocusAreaEditSheet.show(context, ref, user);
   }
 
-  Widget _buildStatsSection(UserModel user) {
+  Widget _buildStatsSection(BuildContext context, WidgetRef ref, UserModel user) {
     final str = (user.stats['strength'] ?? 0).toDouble();
     final energy = (user.stats['energy'] ?? 0).toDouble();
     final focus = (user.stats['focus'] ?? 0).toDouble();
     final knowledge = (user.stats['knowledge'] ?? 0).toDouble();
+    final visibleStats = FocusAreaStatService.getVisibleStats(user.focusAreas);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -719,62 +596,154 @@ class CharacterScreen extends ConsumerWidget {
           ),
           child: Column(
             children: [
-              // Radar Chart (4 Core Attributes)
-              SizedBox(
-                height: 180,
-                child: RadarChart(
-                  RadarChartData(
-                    dataSets: [
-                      RadarDataSet(
-                        fillColor: AppColors.secondary.withValues(alpha: 0.2),
-                        borderColor: AppColors.secondary,
-                        entryRadius: 3,
-                        dataEntries: [
-                          RadarEntry(value: str),
-                          RadarEntry(value: energy),
-                          RadarEntry(value: focus),
-                          RadarEntry(value: knowledge),
-                        ],
-                      ),
-                    ],
-                    radarShape: RadarShape.polygon,
-                    titlePositionPercentageOffset: 0.2,
-                    getTitle: (index, angle) {
-                      switch (index) {
-                        case 0: return const RadarChartTitle(text: 'STR');
-                        case 1: return const RadarChartTitle(text: 'ENG');
-                        case 2: return const RadarChartTitle(text: 'FOC');
-                        case 3: return const RadarChartTitle(text: 'KNW');
-                        default: return const RadarChartTitle(text: '');
-                      }
-                    },
-                    tickCount: 3,
-                    ticksTextStyle: const TextStyle(color: Colors.white24, fontSize: 8),
-                    gridBorderData: const BorderSide(color: Colors.white10),
-                    tickBorderData: const BorderSide(color: Colors.white10),
+              // Radar Chart veya Özel Odak Profili
+              if (visibleStats.length >= 3)
+                SizedBox(
+                  height: 180,
+                  child: RadarChart(
+                    RadarChartData(
+                      dataSets: [
+                        RadarDataSet(
+                          fillColor: AppColors.secondary.withValues(alpha: 0.2),
+                          borderColor: AppColors.secondary,
+                          entryRadius: 3,
+                          dataEntries: [
+                            RadarEntry(value: str),
+                            RadarEntry(value: energy),
+                            RadarEntry(value: focus),
+                            RadarEntry(value: knowledge),
+                          ],
+                        ),
+                      ],
+                      radarShape: RadarShape.polygon,
+                      titlePositionPercentageOffset: 0.2,
+                      getTitle: (index, angle) {
+                        switch (index) {
+                          case 0: return const RadarChartTitle(text: 'STR');
+                          case 1: return const RadarChartTitle(text: 'ENG');
+                          case 2: return const RadarChartTitle(text: 'FOC');
+                          case 3: return const RadarChartTitle(text: 'KNW');
+                          default: return const RadarChartTitle(text: '');
+                        }
+                      },
+                      tickCount: 3,
+                      ticksTextStyle: const TextStyle(color: Colors.white24, fontSize: 8),
+                      gridBorderData: const BorderSide(color: Colors.white10),
+                      tickBorderData: const BorderSide(color: Colors.white10),
+                    ),
                   ),
-                ),
-              ),
+                )
+              else
+                _buildFocusedStatsBanner(user, visibleStats),
               const SizedBox(height: 20),
-              // Grid details (4 Core RPG Stats)
+              // Grid details: Aktif stat kartları ve eğer alan eksikse "Alan Ekle +" kartı
               GridView.count(
-                crossAxisCount: 4,
+                crossAxisCount: visibleStats.length.clamp(2, 4),
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 childAspectRatio: 0.95,
                 mainAxisSpacing: 12,
                 crossAxisSpacing: 8,
                 children: [
-                  _buildRPGStatCard('STR', user.stats['strength'] ?? 0, AppColors.statStrength, 'Güç'),
-                  _buildRPGStatCard('ENG', user.stats['energy'] ?? 0, AppColors.statEnergy, 'Enerji'),
-                  _buildRPGStatCard('FOC', user.stats['focus'] ?? 0, AppColors.statFocus, 'Odak'),
-                  _buildRPGStatCard('KNW', user.stats['knowledge'] ?? 0, AppColors.statKnowledge, 'Bilgi'),
+                  if (visibleStats.contains('strength'))
+                    _buildRPGStatCard('STR', user.stats['strength'] ?? 0, AppColors.statStrength, 'Güç'),
+                  if (visibleStats.contains('energy'))
+                    _buildRPGStatCard('ENG', user.stats['energy'] ?? 0, AppColors.statEnergy, 'Enerji'),
+                  if (visibleStats.contains('focus'))
+                    _buildRPGStatCard('FOC', user.stats['focus'] ?? 0, AppColors.statFocus, 'Odak'),
+                  if (visibleStats.contains('knowledge'))
+                    _buildRPGStatCard('KNW', user.stats['knowledge'] ?? 0, AppColors.statKnowledge, 'Bilgi'),
                 ],
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildFocusedStatsBanner(UserModel user, Set<String> visibleStats) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppColors.background.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.stars_rounded, color: AppColors.secondary, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                'AKTİF ODAK PROFİLİ',
+                style: GoogleFonts.inter(
+                  color: AppColors.secondary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                  letterSpacing: 1.0,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...visibleStats.map((statKey) {
+            final value = user.stats[statKey] ?? 0;
+            final label = FocusAreaStatService.getStatLabel(statKey);
+            final code = FocusAreaStatService.getStatShortCode(statKey);
+            final color = FocusAreaStatService.getStatColor(statKey);
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6.0),
+              child: Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color.withValues(alpha: 0.15),
+                      border: Border.all(color: color.withValues(alpha: 0.4)),
+                    ),
+                    child: Center(
+                      child: Text(
+                        code,
+                        style: GoogleFonts.inter(color: color, fontWeight: FontWeight.bold, fontSize: 11),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(label, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                            Text('$value / 100', style: GoogleFonts.inter(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: LinearProgressIndicator(
+                            value: (value / 100.0).clamp(0.0, 1.0),
+                            backgroundColor: Colors.white10,
+                            valueColor: AlwaysStoppedAnimation(color),
+                            minHeight: 6,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 

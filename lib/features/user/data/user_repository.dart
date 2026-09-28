@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'user_model.dart';
+import '../../../core/services/title_service.dart';
 
 enum StreakCheckResult {
   valid,
@@ -82,13 +83,31 @@ class UserRepository {
     String newTitle = user.title;
     int newStatPoints = user.statPoints;
 
+    final updatedUnlockedTitles = List<String>.from(user.unlockedTitles);
+    if (!updatedUnlockedTitles.contains(user.title)) {
+      updatedUnlockedTitles.add(user.title);
+    }
+
     // Level up loop
     while (newXp >= newXpToNext) {
       newXp -= newXpToNext;
       newLevel++;
       newStatPoints += 3; // Her seviye atlayışında 3 serbest stat puanı!
       newXpToNext = _xpForLevel(newLevel);
-      newTitle = _titleForLevel(newLevel);
+
+      // Odak alanına özel rastgele unvan düşür
+      final dropped = TitleService.getRandomTitleForUser(user.focusAreas, updatedUnlockedTitles);
+      if (dropped != null) {
+        updatedUnlockedTitles.add(dropped.title);
+        if (newTitle == 'Acemi Savaşçı' || newTitle.isEmpty) {
+          newTitle = dropped.title;
+        }
+      } else {
+        final fallbackTitle = _titleForLevel(newLevel);
+        if (!updatedUnlockedTitles.contains(fallbackTitle)) {
+          updatedUnlockedTitles.add(fallbackTitle);
+        }
+      }
     }
 
     // Haftalık XP kontrolü (Pazartesi 00:00 sıfırlama sınırına göre)
@@ -110,6 +129,7 @@ class UserRepository {
       'level': newLevel,
       'xpToNextLevel': newXpToNext,
       'title': newTitle,
+      'unlockedTitles': updatedUnlockedTitles,
       'statPoints': newStatPoints,
       'weeklyXp': newWeeklyXp,
       'lastWeeklyReset': Timestamp.fromDate(lastReset),
@@ -124,6 +144,18 @@ class UserRepository {
     // XP kazanıldığında otomatik altın ver (1 XP = 1 Altın)
     await addGold(uid, xpAmount);
     await updateStreak(uid);
+  }
+
+  /// Kullanıcının aktif unvanını günceller
+  Future<void> selectActiveTitle(String uid, String newTitle) async {
+    await updateUser(uid, {'title': newTitle});
+  }
+
+  /// Yeni bir unvanın kilidini açar
+  Future<void> unlockTitle(String uid, String title) async {
+    await _userDoc(uid).update({
+      'unlockedTitles': FieldValue.arrayUnion([title]),
+    });
   }
 
   String _calcLeague(int weeklyXp) {

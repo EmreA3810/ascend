@@ -22,6 +22,7 @@ import 'widgets/zen_particles_widget.dart';
 import 'widgets/zen_desk_widget.dart';
 import 'widgets/boss_battle_arena.dart';
 import 'widgets/boss_loot_dialog.dart';
+import '../../../core/services/focus_area_stat_service.dart';
 
 class PomodoroScreen extends ConsumerStatefulWidget {
   const PomodoroScreen({super.key});
@@ -294,7 +295,6 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     setState(() {
       _isAttacking = true;
     });
-    SoundEffects.playHit();
 
     Future.delayed(const Duration(milliseconds: 140), () {
       if (mounted) {
@@ -525,13 +525,15 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
       }
       
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (_secondsLeft > 1) {
+        if (_secondsLeft > 0) {
           _updateState(() {
             _secondsLeft--;
           });
-          // Savaş Modu: Seans boyunca her 10 saniyede bir canavara vuruş darbesi
-          if (_selectedFocusMode == 'battle' && !_isBreak && (_secondsLeft % 10 == 0)) {
-            _triggerHitEffect();
+          if (_secondsLeft == 0) {
+            _timer?.cancel();
+            _sessionEndTime = null;
+            _onTimerComplete(user.uid);
+            return;
           }
         } else {
           _timer?.cancel();
@@ -560,11 +562,23 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
         completed: true,
       );
 
-      // Save to Firestore
-      await ref.read(pomodoroRepositoryProvider).saveSession(uid, session);
+      // 0. saniyede gecikmesiz kutlama sesi
+      SoundEffects.playVictory();
 
-      // FOC stat artışı (her iki modda da aynı şekilde artar)
-      await ref.read(userRepositoryProvider).boostStat(uid, 'foc', 1);
+      // Odak alanına göre otomatik ve dinamik stat artışı
+      final userRepo = ref.read(userRepositoryProvider);
+      final questRepo = ref.read(questRepositoryProvider);
+      final statBoosts = FocusAreaStatService.getSessionStatBoosts(_selectedFocusArea);
+      final primaryStat = FocusAreaStatService.getPrimaryStat(_selectedFocusArea);
+
+      // Firestore güncellemelerini paralel arka plan Future'ları olarak çalıştırıyoruz,
+      // böylece ekran 2 saniye ağ gecikmesi nedeniyle donup beklemez!
+      final List<Future<void>> backgroundTasks = [];
+      backgroundTasks.add(ref.read(pomodoroRepositoryProvider).saveSession(uid, session));
+
+      for (final entry in statBoosts.entries) {
+        backgroundTasks.add(userRepo.boostStat(uid, entry.key, entry.value));
+      }
 
       // Fetch active quests
       final dailyQuests = ref.read(dailyQuestsProvider).value ?? [];
@@ -574,7 +588,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
       // 1. Increment standard Pomodoro completion daily quests
       final seansQuests = dailyQuests.where((q) => q.unit == 'seans' && !q.isCompleted);
       for (final q in seansQuests) {
-        await ref.read(questRepositoryProvider).incrementQuestProgress(uid, q.id, 1);
+        backgroundTasks.add(questRepo.incrementQuestProgress(uid, q.id, 1));
       }
 
       // 2. Focus area specific actions
@@ -582,16 +596,16 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
         final targetQuests = [...dailyQuests, ...weeklyQuests, ...customQuests]
             .where((q) => q.unit == 'dk' && !q.isCompleted && (q.statBoost == 'knowledge' || q.title.toLowerCase().contains('ders') || q.title.toLowerCase().contains('çalışma')));
         for (final q in targetQuests) {
-          await ref.read(questRepositoryProvider).incrementQuestProgress(uid, q.id, _selectedWorkDuration);
+          backgroundTasks.add(questRepo.incrementQuestProgress(uid, q.id, _selectedWorkDuration));
         }
       } else if (_selectedFocusArea == 'coding') {
         final targetQuests = [...dailyQuests, ...weeklyQuests, ...customQuests]
             .where((q) => q.unit == 'dk' && !q.isCompleted && (q.statBoost == 'focus' || q.title.toLowerCase().contains('kod') || q.title.toLowerCase().contains('yazılım')));
         for (final q in targetQuests) {
-          await ref.read(questRepositoryProvider).incrementQuestProgress(uid, q.id, _selectedWorkDuration);
+          backgroundTasks.add(questRepo.incrementQuestProgress(uid, q.id, _selectedWorkDuration));
         }
       } else if (_selectedFocusArea == 'reading') {
-        await _showReadingPageDialog(uid, xpEarned);
+        _showReadingPageDialog(uid, xpEarned);
       }
 
       // MOD BAZLI ÖDÜL VE KUTLAMA
@@ -601,12 +615,13 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
         final droppedChest = CombatCalculator.rollChestDrop(boss.chestDropChances);
 
         // Firestore güncellemeleri
-        await ref.read(userRepositoryProvider).addGold(uid, goldEarned);
+        backgroundTasks.add(userRepo.addGold(uid, goldEarned));
         if (droppedChest != null) {
-          await ref.read(userRepositoryProvider).addChest(uid, droppedChest);
+          backgroundTasks.add(userRepo.addChest(uid, droppedChest));
         }
 
-        SoundEffects.playVictory();
+        unawaited(Future.wait(backgroundTasks).catchError((_) => <void>[]));
+
         if (mounted) {
           await BossLootDialog.show(
             context,
@@ -619,9 +634,14 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
       } else {
         // Zen Modu
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-        SoundEffects.playVictory();
+        unawaited(Future.wait(backgroundTasks).catchError((_) => <void>[]));
         if (mounted) {
-          XpGainPopup.show(context, xp: xpEarned, statName: 'foc', statAmount: 1);
+          XpGainPopup.show(
+            context,
+            xp: xpEarned,
+            statName: FocusAreaStatService.getStatLabel(primaryStat),
+            statAmount: 1,
+          );
         }
       }
 
@@ -633,6 +653,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
       });
     } else {
       // Break session ended
+      SoundEffects.playWorkStart();
       _updateState(() {
         _isBreak = false;
         _secondsLeft = _selectedWorkDuration * 60;
@@ -888,13 +909,14 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
       SoundEffects.playTick();
 
-      if (_hiitCountdownSeconds > 1) {
+      if (_hiitCountdownSeconds > 0) {
         setState(() {
           _hiitCountdownSeconds--;
         });
-      } else {
-        timer.cancel();
-        _startHiitWorkPhase(uid);
+        if (_hiitCountdownSeconds == 0) {
+          timer.cancel();
+          _startHiitWorkPhase(uid);
+        }
       }
     });
   }
@@ -915,13 +937,14 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
         _totalWorkoutSecondsElapsed++;
       });
 
-      if (_hiitSecondsLeft > 1) {
+      if (_hiitSecondsLeft > 0) {
         setState(() {
           _hiitSecondsLeft--;
         });
-      } else {
-        timer.cancel();
-        _onHiitSetCompleted(uid);
+        if (_hiitSecondsLeft == 0) {
+          timer.cancel();
+          _onHiitSetCompleted(uid);
+        }
       }
     });
   }
@@ -992,13 +1015,14 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     _hiitTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (_isHiitPaused) return;
 
-      if (_hiitSecondsLeft > 1) {
+      if (_hiitSecondsLeft > 0) {
         setState(() {
           _hiitSecondsLeft--;
         });
-      } else {
-        timer.cancel();
-        _startHiitWorkPhase(uid);
+        if (_hiitSecondsLeft == 0) {
+          timer.cancel();
+          _startHiitWorkPhase(uid);
+        }
       }
     });
   }
@@ -1055,6 +1079,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     await ref.read(pomodoroRepositoryProvider).saveSession(uid, session);
     await ref.read(userRepositoryProvider).addXp(uid, xpEarned);
     await ref.read(userRepositoryProvider).boostStat(uid, 'strength', strengthGain);
+    await ref.read(userRepositoryProvider).boostStat(uid, 'energy', 1);
 
     if (mounted) {
       _showWorkoutSummaryDialog(

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../data/companion_data.dart';
 import '../../../core/utils/sound_effects.dart';
+import 'companion_painter.dart';
 
 class CompanionWidget extends StatefulWidget {
   final CompanionModel companion;
@@ -127,26 +128,33 @@ class _CompanionWidgetState extends State<CompanionWidget> with SingleTickerProv
                       shape: BoxShape.circle,
                       gradient: RadialGradient(
                         colors: [
-                          widget.companion.primaryColor.withValues(alpha: 0.35),
-                          widget.companion.primaryColor.withValues(alpha: 0.05),
+                          widget.companion.primaryColor.withValues(alpha: 0.25),
+                          widget.companion.primaryColor.withValues(alpha: 0.02),
                         ],
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: widget.companion.primaryColor.withValues(alpha: 0.3),
+                          color: widget.companion.primaryColor.withValues(alpha: 0.25),
                           blurRadius: 10,
                           spreadRadius: 2,
                         ),
                       ],
                       border: Border.all(
-                        color: widget.companion.primaryColor.withValues(alpha: 0.6),
-                        width: 1.5,
+                        color: widget.companion.primaryColor.withValues(alpha: 0.5),
+                        width: 1.2,
                       ),
                     ),
                     alignment: Alignment.center,
-                    child: Text(
-                      widget.companion.emoji,
-                      style: TextStyle(fontSize: widget.size * 0.55),
+                    child: SizedBox(
+                      width: widget.size * 0.88,
+                      height: widget.size * 0.88,
+                      child: CustomPaint(
+                        size: Size(widget.size * 0.88, widget.size * 0.88),
+                        painter: CompanionPainter(
+                          companion: widget.companion,
+                          animationValue: _controller.value,
+                        ),
+                      ),
                     ),
                   ),
                   if (widget.showNameTag) ...[

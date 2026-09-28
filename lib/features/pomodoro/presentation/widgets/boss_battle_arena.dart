@@ -151,12 +151,11 @@ class BossBattleArena extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Can yalnızca kahramanımız vuruş gerçekleştirdiğinde senkronize olarak azalır (10sn periyot)
+    // Pürüzsüz can barı: Kalan süreye göre her saniye akıcı olarak azalır
     final currentHp = CombatCalculator.calculateRemainingHp(
       currentSecondsLeft: secondsLeft,
       totalSeconds: totalSeconds,
       maxHp: maxHp,
-      attackInterval: 10,
     );
     final hpPercent = maxHp > 0 ? (currentHp / maxHp).clamp(0.0, 1.0) : 0.0;
     final dpm = CombatCalculator.calculateDamagePerMinute(
