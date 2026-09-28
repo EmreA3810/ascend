@@ -1,6 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'user_model.dart';
 
+enum StreakCheckResult {
+  valid,
+  shieldProtected,
+  broken,
+}
+
+DateTime getStartOfWeek([DateTime? referenceDate]) {
+  final now = referenceDate ?? DateTime.now();
+  final date = DateTime(now.year, now.month, now.day);
+  final daysSinceMonday = date.weekday - DateTime.monday;
+  return date.subtract(Duration(days: daysSinceMonday));
+}
+
 class UserRepository {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -17,9 +30,12 @@ class UserRepository {
   /// Canlı tüm kullanıcıları haftalık XP'ye göre sıralı izle
   Stream<List<UserModel>> watchLiveUsers() {
     return _db.collection('users').snapshots().map((snap) {
+      final startOfWeek = getStartOfWeek();
       final list = snap.docs.map((doc) => UserModel.fromMap(doc.data())).toList();
       list.sort((a, b) {
-        final cmp = b.weeklyXp.compareTo(a.weeklyXp);
+        final aXp = a.getEffectiveWeeklyXp(startOfWeek);
+        final bXp = b.getEffectiveWeeklyXp(startOfWeek);
+        final cmp = bXp.compareTo(aXp);
         if (cmp != 0) return cmp;
         return b.xp.compareTo(a.xp);
       });
@@ -30,12 +46,15 @@ class UserRepository {
   /// Belirli bir ligdeki canlı kullanıcıları izle
   Stream<List<UserModel>> watchLeagueUsers(String leagueTier) {
     return _db.collection('users').snapshots().map((snap) {
+      final startOfWeek = getStartOfWeek();
       final list = snap.docs
           .map((doc) => UserModel.fromMap(doc.data()))
           .where((u) => u.leagueTier.toLowerCase() == leagueTier.toLowerCase())
           .toList();
       list.sort((a, b) {
-        final cmp = b.weeklyXp.compareTo(a.weeklyXp);
+        final aXp = a.getEffectiveWeeklyXp(startOfWeek);
+        final bXp = b.getEffectiveWeeklyXp(startOfWeek);
+        final cmp = bXp.compareTo(aXp);
         if (cmp != 0) return cmp;
         return b.xp.compareTo(a.xp);
       });
@@ -72,7 +91,18 @@ class UserRepository {
       newTitle = _titleForLevel(newLevel);
     }
 
-    final newWeeklyXp = user.weeklyXp + xpAmount;
+    // Haftalık XP kontrolü (Pazartesi 00:00 sıfırlama sınırına göre)
+    final startOfWeek = getStartOfWeek();
+    int baseWeeklyXp = user.weeklyXp;
+    DateTime? lastReset = user.lastWeeklyReset;
+
+    if (lastReset == null || lastReset.isBefore(startOfWeek)) {
+      // Yeni hafta! Eski haftanın XP'si sıfırlanıp yeni XP sıfırın üzerine eklenir.
+      baseWeeklyXp = 0;
+      lastReset = startOfWeek;
+    }
+
+    final newWeeklyXp = baseWeeklyXp + xpAmount;
     final newLeague = _calcLeague(newWeeklyXp);
 
     final updateData = <String, dynamic>{
@@ -82,6 +112,7 @@ class UserRepository {
       'title': newTitle,
       'statPoints': newStatPoints,
       'weeklyXp': newWeeklyXp,
+      'lastWeeklyReset': Timestamp.fromDate(lastReset),
       'leagueTier': newLeague,
     };
     if (newLevel > user.level) {
@@ -140,10 +171,10 @@ class UserRepository {
     }
   }
 
-  /// Günlük XP/eylem ile seriyi güncelle
+  /// Günlük XP/eylem ile seriyi güncelle (UTC tabanlı gün farkı hesabı)
   Future<void> updateStreak(String uid) async {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final todayUtc = DateTime.utc(now.year, now.month, now.day);
     final user = await getUser(uid);
     if (user == null) return;
 
@@ -154,8 +185,8 @@ class UserRepository {
     if (lastActive == null) {
       newStreak = 1;
     } else {
-      final lastDay = DateTime(lastActive.year, lastActive.month, lastActive.day);
-      final diff = today.difference(lastDay).inDays;
+      final lastActiveUtc = DateTime.utc(lastActive.year, lastActive.month, lastActive.day);
+      final diff = todayUtc.difference(lastActiveUtc).inDays;
       if (diff == 1) {
         newStreak = user.streak + 1;
       } else if (diff == 0) {
@@ -174,38 +205,57 @@ class UserRepository {
     await updateUser(uid, {
       'streak': newStreak,
       'streakShields': newShields,
-      'lastActiveDate': Timestamp.fromDate(today),
+      'lastActiveDate': Timestamp.fromDate(DateTime(now.year, now.month, now.day)),
     });
   }
 
   /// Uygulama açılışında seriyi kontrol et.
   /// Eğer dün kaçırılmışsa ve kalkan varsa otomatik seriyi korur.
-  Future<bool> checkAndValidateStreak(String uid) async {
+  Future<StreakCheckResult> checkAndValidateStreak(String uid) async {
     final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
+    final todayUtc = DateTime.utc(now.year, now.month, now.day);
     final user = await getUser(uid);
-    if (user == null || user.lastActiveDate == null) return false;
+    if (user == null || user.lastActiveDate == null) return StreakCheckResult.valid;
 
-    final lastDay = DateTime(user.lastActiveDate!.year, user.lastActiveDate!.month, user.lastActiveDate!.day);
-    final diff = today.difference(lastDay).inDays;
+    final lastActive = user.lastActiveDate!;
+    final lastActiveUtc = DateTime.utc(lastActive.year, lastActive.month, lastActive.day);
+    final diff = todayUtc.difference(lastActiveUtc).inDays;
 
     if (diff > 1) {
       if (user.streakShields > 0) {
         // Kalkan kullan ve dünkü tarihi kurtar
-        final yesterday = today.subtract(const Duration(days: 1));
+        final yesterday = now.subtract(const Duration(days: 1));
         await updateUser(uid, {
           'streakShields': FieldValue.increment(-1),
-          'lastActiveDate': Timestamp.fromDate(yesterday),
+          'lastActiveDate': Timestamp.fromDate(DateTime(yesterday.year, yesterday.month, yesterday.day)),
         });
-        return true; // Kalkan kullanıldı
+        return StreakCheckResult.shieldProtected; // Kalkan kullanıldı
       } else {
         // Kalkan yok ve gün atlanmış -> seri 0'a düşer
         if (user.streak > 0) {
           await updateUser(uid, {
             'streak': 0,
           });
+          return StreakCheckResult.broken;
         }
       }
+    }
+    return StreakCheckResult.valid;
+  }
+
+  /// Haftalık lig sıfırlamasını denetle ve gerekirse haftalık XP'yi 0 yap.
+  Future<bool> ensureWeeklyReset(String uid) async {
+    final user = await getUser(uid);
+    if (user == null) return false;
+
+    final startOfWeek = getStartOfWeek();
+    if (user.lastWeeklyReset == null || user.lastWeeklyReset!.isBefore(startOfWeek)) {
+      await updateUser(uid, {
+        'weeklyXp': 0,
+        'lastWeeklyReset': Timestamp.fromDate(startOfWeek),
+        'leagueTier': _calcLeague(0),
+      });
+      return true; // Yeni haftaya geçildi ve sıfırlandı
     }
     return false;
   }

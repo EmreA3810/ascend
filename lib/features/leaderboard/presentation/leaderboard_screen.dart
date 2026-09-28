@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/sound_effects.dart';
 import '../../user/providers/user_provider.dart';
 import '../../user/data/user_model.dart';
+import '../../user/data/user_repository.dart';
 import '../../clubs/data/club_model.dart';
 import '../../clubs/providers/club_provider.dart';
 
@@ -173,6 +174,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> with Tick
     String leagueTier,
     Color leagueColor,
   ) {
+    final startOfWeek = getStartOfWeek();
     // Sadece bu lige ait olan veya tüm gerçek kullanıcılar
     final tierUsers = allUsers.where((u) {
       final tier = u.leagueTier.toLowerCase();
@@ -182,9 +184,11 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> with Tick
       return tier == leagueTier;
     }).toList();
 
-    // Haftalık XP'ye göre sırala
+    // Haftalık XP'ye göre sırala (Geçerli haftanın efektif XP'si)
     tierUsers.sort((a, b) {
-      final cmp = b.weeklyXp.compareTo(a.weeklyXp);
+      final aXp = a.getEffectiveWeeklyXp(startOfWeek);
+      final bXp = b.getEffectiveWeeklyXp(startOfWeek);
+      final cmp = bXp.compareTo(aXp);
       if (cmp != 0) return cmp;
       return b.xp.compareTo(a.xp);
     });
@@ -338,7 +342,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> with Tick
             ),
           ),
           Text(
-            '${warrior.weeklyXp} XP',
+            '${warrior.getEffectiveWeeklyXp(getStartOfWeek())} XP',
             style: GoogleFonts.inter(color: color, fontSize: 11, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 4),
@@ -449,7 +453,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> with Tick
             ),
           ),
           Text(
-            '${warrior.weeklyXp} XP',
+            '${warrior.getEffectiveWeeklyXp(getStartOfWeek())} XP',
             style: GoogleFonts.inter(
               color: Colors.white,
               fontWeight: FontWeight.bold,
@@ -516,7 +520,7 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> with Tick
               const Icon(Icons.flash_on, color: Colors.amber, size: 18),
               const SizedBox(width: 4),
               Text(
-                '${warrior.weeklyXp} XP',
+                '${warrior.getEffectiveWeeklyXp(getStartOfWeek())} XP',
                 style: GoogleFonts.inter(color: Colors.amber, fontWeight: FontWeight.w900, fontSize: 16),
               ),
             ],
@@ -535,27 +539,43 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> with Tick
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
         children: [
           Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Icon(Icons.timer_outlined, color: Colors.orangeAccent, size: 18),
-              const SizedBox(width: 8),
+              Row(
+                children: [
+                  const Icon(Icons.timer_outlined, color: Colors.orangeAccent, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Hafta Kapanışına:',
+                    style: GoogleFonts.inter(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
               Text(
-                'Hafta Kapanışına:',
-                style: GoogleFonts.inter(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+                _formatDuration(_timeLeft),
+                style: GoogleFonts.inter(
+                  color: Colors.orangeAccent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
               ),
             ],
           ),
-          Text(
-            _formatDuration(_timeLeft),
-            style: GoogleFonts.inter(
-              color: Colors.orangeAccent,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
-            ),
+          const SizedBox(height: 4),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.restart_alt_rounded, size: 12, color: Colors.white38),
+              const SizedBox(width: 4),
+              Text(
+                'Liderlik tablosu her Pazartesi 00:00\'da sıfırlanır',
+                style: GoogleFonts.inter(color: Colors.white38, fontSize: 10),
+              ),
+            ],
           ),
         ],
       ),

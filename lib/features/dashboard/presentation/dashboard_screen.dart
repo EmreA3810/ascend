@@ -22,6 +22,7 @@ import '../../shop/presentation/shop_screen.dart';
 import '../../shop/data/companion_data.dart';
 import '../../shop/presentation/companion_widget.dart';
 import '../../leaderboard/presentation/leaderboard_screen.dart';
+import '../../user/data/user_repository.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -41,6 +42,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   late Animation<Offset> _questsSlide;
   double _previousXpRatio = 0;
   bool _introStarted = false;
+  bool _hasCheckedStreakAndReset = false;
 
   @override
   void initState() {
@@ -85,20 +87,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         curve: const Interval(0.25, 0.8, curve: Curves.easeOutCubic),
       ),
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       NotificationService.checkDailyReminder(context, ref);
-      final u = ref.read(currentUserProvider).value;
-      if (u != null) {
-        final protected = await ref.read(userRepositoryProvider).checkAndValidateStreak(u.uid);
-        if (protected && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: Colors.blueAccent,
-              content: Text('🛡️ Streak Kalkanı devreye girdi ve serini korudu!', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
-            ),
-          );
-        }
-      }
     });
   }
 
@@ -134,8 +124,60 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     return DateFormat('dd.MM.yyyy').format(dt);
   }
 
+  void _showStreakFeedback(bool resetDone, StreakCheckResult streakResult) {
+    if (!mounted) return;
+    if (resetDone) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.purple.shade700,
+          content: Text(
+            '🏆 Yeni Lig Haftası Başladı! Haftalık liderlik tablosu sıfırlandı.',
+            style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+    }
+
+    if (streakResult == StreakCheckResult.shieldProtected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.blueAccent,
+          content: Text(
+            '🛡️ Dün giriş yapmadın ama Streak Kalkanın serini korudu!',
+            style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+    } else if (streakResult == StreakCheckResult.broken) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.redAccent.shade700,
+          content: Text(
+            '💔 Dün giriş yapmadığın için serin sıfırlandı. Bugün odaklanarak yeni bir seriye başla!',
+            style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<UserModel?>>(currentUserProvider, (previous, next) async {
+      final user = next.value;
+      if (user != null && !_hasCheckedStreakAndReset) {
+        _hasCheckedStreakAndReset = true;
+        final repo = ref.read(userRepositoryProvider);
+
+        // 1. Haftalık lig sıfırlama denetimi
+        final resetDone = await repo.ensureWeeklyReset(user.uid);
+        // 2. Günlük streak doğrulama denetimi
+        final streakResult = await repo.checkAndValidateStreak(user.uid);
+        
+        _showStreakFeedback(resetDone, streakResult);
+      }
+    });
+
     final userAsync = ref.watch(currentUserProvider);
 
     return userAsync.when(

@@ -147,7 +147,7 @@ class LootPool {
       slot: 'torso',
       rarity: Rarity.common,
       xpCost: 100,
-      color: Colors.white70,
+      color: const Color(0xFFF5F5F7),
     ),
     LootItem(
       id: 'tunic',

@@ -24,6 +24,7 @@ class UserModel {
   final List<String> unlockedCompanions;
   final String? equippedCompanion;
   final int weeklyXp;
+  final DateTime? lastWeeklyReset;
   final String leagueTier;
   final String? clubId;
   final String? clubName;
@@ -54,6 +55,7 @@ class UserModel {
     this.unlockedCompanions = const [],
     this.equippedCompanion,
     this.weeklyXp = 0,
+    this.lastWeeklyReset,
     this.leagueTier = 'bronz',
     this.clubId,
     this.clubName,
@@ -90,6 +92,7 @@ class UserModel {
       unlockedCompanions: List<String>.from(map['unlockedCompanions'] ?? const []),
       equippedCompanion: map['equippedCompanion'] as String?,
       weeklyXp: (map['weeklyXp'] as num?)?.toInt() ?? 0,
+      lastWeeklyReset: (map['lastWeeklyReset'] as Timestamp?)?.toDate(),
       leagueTier: map['leagueTier'] as String? ?? 'bronz',
       clubId: map['clubId'] as String?,
       clubName: map['clubName'] as String?,
@@ -122,12 +125,25 @@ class UserModel {
         'unlockedCompanions': unlockedCompanions,
         'equippedCompanion': equippedCompanion,
         'weeklyXp': weeklyXp,
+        'lastWeeklyReset': lastWeeklyReset != null ? Timestamp.fromDate(lastWeeklyReset!) : null,
         'leagueTier': leagueTier,
         'clubId': clubId,
         'clubName': clubName,
         'clubTag': clubTag,
         'hasClaimedLegacyStats': hasClaimedLegacyStats,
       };
+
+  /// Haftalık sıfırlama sınırını kontrol ederek geçerli haftadaki efektif XP'yi döner.
+  /// Kullanıcının son aktifliği veya son haftalık sıfırlaması bu haftadan eskiyse 0 kabul edilir.
+  int getEffectiveWeeklyXp(DateTime startOfWeek) {
+    if (lastWeeklyReset != null && lastWeeklyReset!.isBefore(startOfWeek)) {
+      return 0;
+    }
+    if (lastActiveDate != null && lastActiveDate!.isBefore(startOfWeek)) {
+      return 0;
+    }
+    return weeklyXp;
+  }
 
   UserModel copyWith({
     int? level,
@@ -150,6 +166,7 @@ class UserModel {
     List<String>? unlockedCompanions,
     String? equippedCompanion,
     int? weeklyXp,
+    DateTime? lastWeeklyReset,
     String? leagueTier,
     String? clubId,
     String? clubName,
@@ -180,6 +197,7 @@ class UserModel {
       unlockedCompanions: unlockedCompanions ?? this.unlockedCompanions,
       equippedCompanion: equippedCompanion ?? this.equippedCompanion,
       weeklyXp: weeklyXp ?? this.weeklyXp,
+      lastWeeklyReset: lastWeeklyReset ?? this.lastWeeklyReset,
       leagueTier: leagueTier ?? this.leagueTier,
       clubId: clubId ?? this.clubId,
       clubName: clubName ?? this.clubName,
