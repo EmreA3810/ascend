@@ -21,7 +21,7 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
   final _titleController = TextEditingController();
   final _targetValueController = TextEditingController(text: '1');
 
-  String _selectedCategory = 'custom';
+  String _selectedCategory = 'daily';
   String _selectedStatBoost = 'focus';
   String _selectedIcon = 'star';
   String _selectedUnit = 'dk';
@@ -41,7 +41,7 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
     if (quest != null) {
       _titleController.text = quest.title;
       _targetValueController.text = quest.targetValue.toString();
-      _selectedCategory = quest.category;
+      _selectedCategory = quest.category == 'custom' ? 'instant' : quest.category;
       _selectedStatBoost = quest.statBoost;
       _selectedIcon = quest.iconName;
       _selectedUnit = quest.unit;
@@ -360,7 +360,7 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
                 children: [
                   {'val': 'daily', 'label': 'Günlük', 'icon': Icons.today_rounded},
                   {'val': 'weekly', 'label': 'Haftalık', 'icon': Icons.date_range_rounded},
-                  {'val': 'custom', 'label': 'Özel Hedef', 'icon': Icons.star_rounded},
+                  {'val': 'instant', 'label': 'Anlık Görev', 'icon': Icons.bolt_rounded},
                 ].map((cat) {
                   final isSelected = _selectedCategory == cat['val'];
                   return Expanded(

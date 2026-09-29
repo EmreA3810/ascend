@@ -94,10 +94,12 @@ class QuestXpCalculator {
         break;
     }
 
-    // 2. Kategori çarpanı (Haftalık maraton görevleri uzun soluklu olduğundan 2.2 katı ödül sağlar)
+    // 2. Kategori çarpanı (Haftalık maraton 2.2x, Anlık hızlı görevler 1.3x ekstra bonus)
     double categoryMultiplier = 1.0;
     if (category == 'weekly') {
       categoryMultiplier = 2.2;
+    } else if (category == 'instant') {
+      categoryMultiplier = 1.3;
     }
 
     final totalXp = (basePoints * categoryMultiplier).round();

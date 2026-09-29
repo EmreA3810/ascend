@@ -37,12 +37,73 @@ class QuestRepository {
         .toList());
   }
 
-  /// Özel görevleri dinler (tarih filtresiz, kalıcı)
-  Stream<List<QuestModel>> watchCustomQuests(String uid) {
+  /// Anlık / Hızlı görevleri dinler (category == 'instant' veya eski 'custom')
+  Stream<List<QuestModel>> watchInstantQuests(String uid) {
     return _questsCol(uid).snapshots().map((snap) => snap.docs
         .map((doc) => QuestModel.fromMap(doc.data(), doc.id))
-        .where((q) => q.category == 'custom')
+        .where((q) => q.category == 'instant' || q.category == 'custom')
         .toList());
+  }
+
+  /// Özel görevleri dinler (geriye dönük uyumluluk)
+  Stream<List<QuestModel>> watchCustomQuests(String uid) => watchInstantQuests(uid);
+
+  /// Başlangıç anlık görevlerini oluşturur (varsa ekleme yapmaz)
+  Future<void> ensureInstantQuests(String uid) async {
+    final existing = await _questsCol(uid).get();
+    final hasInstant = existing.docs.any((d) {
+      final cat = d.data()['category'];
+      return cat == 'instant' || cat == 'custom';
+    });
+    if (!hasInstant) {
+      final starterInstant = [
+        QuestModel(
+          id: '',
+          title: '15 Dk Hızlı Odak Sprinti',
+          xpReward: 65,
+          category: 'instant',
+          iconName: 'timer',
+          isCompleted: false,
+          createdAt: DateTime.now(),
+          statBoost: 'focus',
+          progress: 0.0,
+          currentValue: 0,
+          targetValue: 15,
+          unit: 'dk',
+        ),
+        QuestModel(
+          id: '',
+          title: '1 Bardak Su İç & Esne',
+          xpReward: 35,
+          category: 'instant',
+          iconName: 'water_drop',
+          isCompleted: false,
+          createdAt: DateTime.now(),
+          statBoost: 'energy',
+          progress: 0.0,
+          currentValue: 0,
+          targetValue: 1,
+          unit: 'bardak',
+        ),
+        QuestModel(
+          id: '',
+          title: 'Hızlı Soru / Kod İncelemesi',
+          xpReward: 55,
+          category: 'instant',
+          iconName: 'school',
+          isCompleted: false,
+          createdAt: DateTime.now(),
+          statBoost: 'knowledge',
+          progress: 0.0,
+          currentValue: 0,
+          targetValue: 1,
+          unit: 'problem',
+        ),
+      ];
+      for (final q in starterInstant) {
+        await addQuest(uid, q);
+      }
+    }
   }
 
   /// Yeni görev ekler (auto-generated ID)

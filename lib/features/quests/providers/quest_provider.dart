@@ -33,14 +33,16 @@ final weeklyQuestsProvider = StreamProvider<List<QuestModel>>((ref) {
   );
 });
 
-final customQuestsProvider = StreamProvider<List<QuestModel>>((ref) {
+final instantQuestsProvider = StreamProvider<List<QuestModel>>((ref) {
   final authState = ref.watch(authStateProvider);
   return authState.when(
     loading: () => const Stream.empty(),
     error: (_, __) => const Stream.empty(),
     data: (user) {
       if (user == null) return const Stream.empty();
-      return ref.read(questRepositoryProvider).watchCustomQuests(user.uid);
+      return ref.read(questRepositoryProvider).watchInstantQuests(user.uid);
     },
   );
 });
+
+final customQuestsProvider = instantQuestsProvider;

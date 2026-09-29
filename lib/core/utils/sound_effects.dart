@@ -72,6 +72,18 @@ class SoundEffects {
     await _playBytes(_statUpWav!);
   }
 
+  /// Sandık açma / Altın kazanma sesi (Chime & Coin)
+  static Uint8List? _chestOpenWav;
+  static Future<void> playChestOpen() async {
+    _chestOpenWav ??= _synthesizeWav([
+      const _Tone(659.25, 0.08, volume: 0.55),  // E5
+      const _Tone(880.00, 0.08, volume: 0.6),   // A5
+      const _Tone(1046.50, 0.12, volume: 0.65), // C6
+      const _Tone(1318.51, 0.28, volume: 0.7),  // E6
+    ]);
+    await _playBytes(_chestOpenWav!);
+  }
+
   static Uint8List? _errorWav;
   static Uint8List? _hitWav;
 

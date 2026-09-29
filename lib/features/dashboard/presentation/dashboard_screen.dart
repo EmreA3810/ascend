@@ -355,10 +355,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
           ),
         ),
         // Shop / Gold Button
-        GestureDetector(
+        InkWell(
           onTap: () {
             Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopScreen()));
           },
+          borderRadius: BorderRadius.circular(20),
           child: Container(
             margin: const EdgeInsets.only(right: 8),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -368,6 +369,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
             ),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.storefront_rounded, color: Colors.amber, size: 16),
                 const SizedBox(width: 4),
@@ -529,9 +531,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     child: Container(
                       height: 10,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [AppColors.success, AppColors.secondary]),
+                        gradient: AppColors.xpGradient,
                         borderRadius: BorderRadius.circular(5),
-                        boxShadow: [BoxShadow(color: AppColors.success.withValues(alpha: 0.6), blurRadius: 8, spreadRadius: 1)],
+                        boxShadow: [BoxShadow(color: const Color(0xFF10B981).withValues(alpha: 0.6), blurRadius: 8, spreadRadius: 1)],
                       ),
                     ),
                   ),

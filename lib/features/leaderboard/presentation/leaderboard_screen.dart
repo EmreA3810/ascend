@@ -69,45 +69,89 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> with Tick
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: Navigator.canPop(context)
-            ? IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70, size: 20),
-                onPressed: () => Navigator.of(context).pop(),
-              )
-            : const Icon(Icons.emoji_events_rounded, color: AppColors.gold, size: 24),
-        title: Text(
-          'LİG & KULÜPLER',
-          style: GoogleFonts.inter(
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 2,
-            color: Colors.white,
-          ),
-        ),
-        bottom: TabBar(
-          controller: _mainTabController,
-          indicatorColor: AppColors.primary,
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white54,
-          labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
-          tabs: const [
-            Tab(icon: Icon(Icons.emoji_events_rounded, size: 18), text: 'Genel Lig'),
-            Tab(icon: Icon(Icons.shield_rounded, size: 18), text: 'Kulübüm & Arkadaşlar'),
-          ],
-        ),
-      ),
       body: user == null
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : TabBarView(
-              controller: _mainTabController,
-              children: [
-                _buildLiveLeagueTab(user),
-                _buildClubTab(user),
+          : NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                SliverAppBar(
+                  floating: true,
+                  snap: true,
+                  backgroundColor: AppColors.background,
+                  elevation: 0,
+                  toolbarHeight: 46,
+                  leading: Navigator.canPop(context)
+                      ? IconButton(
+                          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70, size: 18),
+                          onPressed: () => Navigator.of(context).pop(),
+                        )
+                      : null,
+                  title: ShaderMask(
+                    shaderCallback: (bounds) => const LinearGradient(
+                      colors: [Colors.amber, Colors.orangeAccent],
+                    ).createShader(bounds),
+                    child: Text(
+                      'LİG & KULÜPLER',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  bottom: PreferredSize(
+                    preferredSize: const Size.fromHeight(42),
+                    child: Container(
+                      height: 36,
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: TabBar(
+                        controller: _mainTabController,
+                        indicator: BoxDecoration(
+                          color: const Color(0xFFFFB300),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        labelColor: Colors.black87,
+                        unselectedLabelColor: Colors.white60,
+                        labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 12),
+                        tabs: const [
+                          Tab(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.emoji_events_rounded, size: 15),
+                                SizedBox(width: 6),
+                                Text('Genel Lig'),
+                              ],
+                            ),
+                          ),
+                          Tab(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.shield_rounded, size: 15),
+                                SizedBox(width: 6),
+                                Text('Kulübüm & Arkadaşlar'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ],
+              body: TabBarView(
+                controller: _mainTabController,
+                children: [
+                  _buildLiveLeagueTab(user),
+                  _buildClubTab(user),
+                ],
+              ),
             ),
     );
   }

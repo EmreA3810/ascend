@@ -4274,36 +4274,51 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: AppColors.background,
-        elevation: 0,
-        toolbarHeight: 40,
-        title: Text(
-          _selectedFocusMode == 'zen' ? 'Zen Odak' : 'Pomodoro İstasyonu',
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.history_rounded, color: Colors.white70, size: 20),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-            onPressed: () {
-              showModalBottomSheet(
-                context: context,
-                isScrollControlled: true,
-                backgroundColor: Colors.transparent,
-                builder: (ctx) => const SessionHistorySheet(),
-              );
-            },
-            tooltip: 'Seans Geçmişi',
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            floating: true,
+            snap: true,
+            backgroundColor: AppColors.background,
+            elevation: 0,
+            toolbarHeight: 46,
+            title: ShaderMask(
+              shaderCallback: (bounds) => const LinearGradient(
+                colors: [Color(0xFFFF5722), Color(0xFFFF9800)], // Ateş Mercanı & Kehribar Sarısı
+              ).createShader(bounds),
+              child: Text(
+                _selectedFocusMode == 'zen' ? 'ZEN ODAK' : 'ODAK & SAVAŞ',
+                style: GoogleFonts.inter(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 2,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.history_rounded, color: Colors.white70, size: 20),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: Colors.transparent,
+                    builder: (ctx) => const SessionHistorySheet(),
+                  );
+                },
+                tooltip: 'Seans Geçmişi',
+              ),
+            ],
           ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
             // 1. Mod Anahtarı: Savaş Modu | Zen Modu
             if (_selectedFocusArea != 'fitness') ...[
               _buildFocusModeSegmentedSwitch(),
@@ -4414,7 +4429,10 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
           ],
         ),
       ),
-    );
+    ),
+  ],
+),
+);
   }
 
   // Immersive view builder

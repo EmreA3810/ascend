@@ -194,9 +194,9 @@ class BossBattleArena extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Savaş Sahnesi: Karakter Saldırısı ve Canavar Çarpışması (Kompakt: 75px yükseklik, çubuksuz)
+          // Savaş Sahnesi: Karakter Saldırısı ve Canavar Çarpışması (Dengeli: 92px yükseklik, ferah)
           SizedBox(
-            height: 75,
+            height: 92,
             child: Stack(
               clipBehavior: Clip.none,
               children: [
@@ -212,11 +212,11 @@ class BossBattleArena extends StatelessWidget {
                       child: Transform.rotate(
                         angle: isAttacking ? -0.12 : 0.0,
                         child: SizedBox(
-                          width: 65,
-                          height: 75,
+                          width: 72,
+                          height: 86,
                           child: CharacterAvatar(
                             equippedItems: equippedItems,
-                            size: 65,
+                            size: 72,
                           ),
                         ),
                       ),
@@ -224,12 +224,12 @@ class BossBattleArena extends StatelessWidget {
 
                     // --- 2. MERKEZ KILIÇ KESİŞİ DALGASI ---
                     SizedBox(
-                      width: 36,
-                      height: 50,
+                      width: 40,
+                      height: 56,
                       child: Center(
                         child: (isAttacking || isBossHit)
                             ? CustomPaint(
-                                size: const Size(36, 50),
+                                size: const Size(40, 56),
                                 painter: _SlashArcPainter(color: Colors.amberAccent),
                               )
                             : const SizedBox.shrink(),
@@ -245,8 +245,8 @@ class BossBattleArena extends StatelessWidget {
                           duration: const Duration(milliseconds: 140),
                           scale: isBossHit ? 0.90 : 1.0,
                           child: SizedBox(
-                            width: 75,
-                            height: 75,
+                            width: 82,
+                            height: 82,
                             child: BossHitDebrisWidget(
                               boss: boss,
                               isHit: isBossHit,
@@ -254,7 +254,7 @@ class BossBattleArena extends StatelessWidget {
                                 boss: boss,
                                 hpPercentage: hpPercent,
                                 isHit: isBossHit,
-                                size: 70,
+                                size: 78,
                               ),
                             ),
                           ),
@@ -303,67 +303,70 @@ class BossBattleArena extends StatelessWidget {
           const SizedBox(height: 6),
 
           // 2. ORTA: DEĞİŞTİR BUTONU, SAĞ: BOSS İSMİ (Boss karakterinin altına)
-          SizedBox(
-            height: 28,
-            child: Stack(
-              children: [
-                // ORTA: Değiştir Butonu
-                Align(
-                  alignment: Alignment.center,
-                  child: InkWell(
-                    onTap: isRunning ? null : () => _showBossPicker(context),
+          Row(
+            children: [
+              const SizedBox(width: 15),
+              // ORTA: Değiştir Butonu
+              InkWell(
+                onTap: isRunning ? null : () => _showBossPicker(context),
+                borderRadius: BorderRadius.circular(14),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isRunning
+                        ? Colors.white.withValues(alpha: 0.04)
+                        : boss.primaryColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(14),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isRunning
-                            ? Colors.white.withValues(alpha: 0.04)
-                            : boss.primaryColor.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: isRunning
-                              ? Colors.white12
-                              : boss.accentColor.withValues(alpha: 0.5),
-                          width: 0.8,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isRunning ? Icons.lock_outline_rounded : Icons.swap_horiz_rounded,
-                            color: isRunning ? Colors.white38 : boss.accentColor,
-                            size: 13,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            isRunning ? 'Savaşta' : 'Değiştir',
-                            style: GoogleFonts.inter(
-                              color: isRunning ? Colors.white38 : Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ],
-                      ),
+                    border: Border.all(
+                      color: isRunning
+                          ? Colors.white12
+                          : boss.accentColor.withValues(alpha: 0.5),
+                      width: 0.8,
                     ),
                   ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isRunning ? Icons.lock_outline_rounded : Icons.swap_horiz_rounded,
+                        color: isRunning ? Colors.white38 : boss.accentColor,
+                        size: 13,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        isRunning ? 'Savaşta' : 'Değiştir',
+                        style: GoogleFonts.inter(
+                          color: isRunning ? Colors.white38 : Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ),
 
-                // SAĞ: Boss İsmi ve Rozeti (Boss karakterinin tam altına hizalı)
-                Align(
+              const SizedBox(width: 8),
+
+              // SAĞ: Boss İsmi ve Rozeti (Boss karakterinin tam altına hizalı)
+              Expanded(
+                child: Align(
                   alignment: Alignment.centerRight,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        boss.name,
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12.5,
-                          letterSpacing: 0.2,
+                      Flexible(
+                        child: Text(
+                          boss.name,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: GoogleFonts.inter(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12.5,
+                            letterSpacing: 0.2,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 5),
@@ -389,8 +392,8 @@ class BossBattleArena extends StatelessWidget {
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
           const SizedBox(height: 5),
 

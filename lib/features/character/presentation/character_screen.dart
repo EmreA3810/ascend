@@ -44,88 +44,137 @@ class CharacterScreen extends ConsumerWidget {
       length: 2,
       child: Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(
-          backgroundColor: AppColors.background,
-          elevation: 0,
-          title: Text(
-            'Karakter & Gelişim',
-            style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white),
-          ),
-          bottom: TabBar(
-            indicatorColor: AppColors.primary,
-            indicatorWeight: 3,
-            labelColor: AppColors.primary,
-            unselectedLabelColor: Colors.white54,
-            labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
-            tabs: const [
-              Tab(icon: Icon(Icons.shield_outlined, size: 18), text: 'Karakter & Gardırop'),
-              Tab(icon: Icon(Icons.bar_chart_rounded, size: 18), text: 'İstatistik & Grafikler'),
+        body: NestedScrollView(
+          headerSliverBuilder: (context, innerBoxIsScrolled) => [
+            SliverAppBar(
+              floating: true,
+              snap: true,
+              backgroundColor: AppColors.background,
+              elevation: 0,
+              toolbarHeight: 46,
+              title: ShaderMask(
+                shaderCallback: (bounds) => const LinearGradient(
+                  colors: [Color(0xFFF43F5E), Color(0xFFFB7185)], // Siber Gül Pembesi & Mercan
+                ).createShader(bounds),
+                child: Text(
+                  'KARAKTER',
+                  style: GoogleFonts.inter(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 2,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              bottom: PreferredSize(
+                preferredSize: const Size.fromHeight(42),
+                child: Container(
+                  height: 36,
+                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: TabBar(
+                    indicator: BoxDecoration(
+                      color: const Color(0xFFF43F5E), // Siber Gül Pembesi
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    labelColor: Colors.white,
+                    unselectedLabelColor: Colors.white60,
+                    labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 12),
+                    tabs: const [
+                      Tab(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.shield_outlined, size: 15),
+                            SizedBox(width: 6),
+                            Text('Gardırop'),
+                          ],
+                        ),
+                      ),
+                      Tab(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.bar_chart_rounded, size: 15),
+                            SizedBox(width: 6),
+                            Text('İstatistikler'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+          body: TabBarView(
+            children: [
+              userAsync.when(
+                loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                error: (err, stack) => Center(child: Text('Hata: $err', style: GoogleFonts.inter(color: AppColors.error))),
+                data: (user) {
+                  if (user == null) {
+                    return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+                  }
+
+                  // Fetch achievements
+                  final achievements = achievementsAsync.value ?? [];
+                  final unlockedAchievements = achievements.where((a) => a.isUnlocked).toList();
+
+                  // Merge activities
+                  final completedQuests = dailyQuestsAsync.value?.where((q) => q.isCompleted).toList() ?? [];
+                  final completedSessions = todaySessionsAsync.value ?? [];
+
+                  final List<Map<String, dynamic>> activities = [];
+                  
+                  for (final q in completedQuests) {
+                    activities.add({
+                      'title': '${q.title} Tamamlandı',
+                      'time': q.completedAt ?? q.createdAt,
+                      'icon': QuestModel.iconFromName(q.iconName),
+                      'color': AppColors.success,
+                    });
+                  }
+
+                  for (final s in completedSessions) {
+                    activities.add({
+                      'title': '${s.workMinutes} dk Pomodoro',
+                      'time': s.endedAt,
+                      'icon': Icons.timer_rounded,
+                      'color': AppColors.secondary,
+                    });
+                  }
+
+                  activities.sort((a, b) => (b['time'] as DateTime).compareTo(a['time'] as DateTime));
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _revealSection(order: 0, child: _buildCharacterHero(context, ref, user)),
+                        const SizedBox(height: 20),
+                        _revealSection(order: 1, child: _buildStatsSection(context, ref, user)),
+                        const SizedBox(height: 20),
+                        _revealSection(order: 2, child: _buildAchievementsSection(unlockedAchievements)),
+                        const SizedBox(height: 20),
+                        _revealSection(order: 3, child: _buildTimelineSection(activities)),
+                        const SizedBox(height: 30),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const StatsScreen(showAppBar: false),
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            userAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-              error: (err, stack) => Center(child: Text('Hata: $err', style: GoogleFonts.inter(color: AppColors.error))),
-              data: (user) {
-          if (user == null) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.primary));
-          }
-
-          // Fetch achievements
-          final achievements = achievementsAsync.value ?? [];
-          final unlockedAchievements = achievements.where((a) => a.isUnlocked).toList();
-
-          // Merge activities
-          final completedQuests = dailyQuestsAsync.value?.where((q) => q.isCompleted).toList() ?? [];
-          final completedSessions = todaySessionsAsync.value ?? [];
-
-          final List<Map<String, dynamic>> activities = [];
-          
-          for (final q in completedQuests) {
-            activities.add({
-              'title': '${q.title} Tamamlandı',
-              'time': q.completedAt ?? q.createdAt,
-              'icon': QuestModel.iconFromName(q.iconName),
-              'color': AppColors.success,
-            });
-          }
-
-          for (final s in completedSessions) {
-            activities.add({
-              'title': '${s.workMinutes} dk Pomodoro',
-              'time': s.endedAt,
-              'icon': Icons.timer_rounded,
-              'color': AppColors.secondary,
-            });
-          }
-
-          activities.sort((a, b) => (b['time'] as DateTime).compareTo(a['time'] as DateTime));
-
-          return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _revealSection(order: 0, child: _buildCharacterHero(context, ref, user)),
-                const SizedBox(height: 20),
-                _revealSection(order: 1, child: _buildStatsSection(context, ref, user)),
-                const SizedBox(height: 20),
-                _revealSection(order: 2, child: _buildAchievementsSection(unlockedAchievements)),
-                const SizedBox(height: 20),
-                _revealSection(order: 3, child: _buildTimelineSection(activities)),
-                const SizedBox(height: 30),
-              ],
-            ),
-          );
-        },
       ),
-      const StatsScreen(showAppBar: false),
-    ],
-  ),
-),
-);
+    );
   }
 
   Widget _revealSection({required Widget child, required int order}) {

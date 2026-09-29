@@ -19,11 +19,11 @@ class AppColors {
   static const Color textPrimary = Colors.white;
   static const Color textSecondary = Color(0xFF9E9E9E);
 
-  // Stat Colors
-  static const Color statFocus = Color(0xFF00E5FF); // Cyan
-  static const Color statEnergy = Color(0xFF7C4DFF); // Purple
-  static const Color statKnowledge = Color(0xFFFFAB40); // Orange
-  static const Color statStrength = Color(0xFFFF4081); // Pink
+  // Stat Colors (Her birine Ascend mor-mavi temasından bağımsız, özel RPG renk kimliği)
+  static const Color statFocus = Color(0xFF38BDF8); // Berrak Gökyüzü / Safir Mavisi
+  static const Color statEnergy = Color(0xFFF59E0B); // Kehribar Sarısı / Yıldırım Enerjisi
+  static const Color statKnowledge = Color(0xFF10B981); // Zümrüt Yeşili / Bilgelik
+  static const Color statStrength = Color(0xFFEF4444); // Yakut Kırmızısı / Fiziksel Güç
 
   // Achievement
   static const Color gold = Color(0xFFFFD700);
@@ -39,7 +39,7 @@ class AppColors {
     colors: [Color(0xFF7C4DFF), Color(0xFF00E5FF)],
   );
   static const LinearGradient xpGradient = LinearGradient(
-    colors: [Color(0xFF00FF95), Color(0xFF00E5FF)],
+    colors: [Color(0xFF10B981), Color(0xFF00FF95)],
   );
   static const LinearGradient goldGradient = LinearGradient(
     colors: [Color(0xFFFFD700), Color(0xFFFFA000)],

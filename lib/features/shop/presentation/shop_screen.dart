@@ -15,7 +15,8 @@ class ShopScreen extends ConsumerStatefulWidget {
   ConsumerState<ShopScreen> createState() => _ShopScreenState();
 }
 
-class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProviderStateMixin {
+class _ShopScreenState extends ConsumerState<ShopScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
   @override
@@ -37,89 +38,166 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white70, size: 20),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          'MAĞAZA',
-          style: GoogleFonts.inter(
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 2,
-            color: Colors.white,
-          ),
-        ),
-        actions: [
-          if (user != null) ...[
-            // Streak shields badge
-            Container(
-              margin: const EdgeInsets.only(right: 8, top: 10, bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.blueAccent.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.blueAccent.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.shield_rounded, color: Colors.cyanAccent, size: 16),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${user.streakShields}/3',
-                    style: GoogleFonts.inter(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            // Gold balance chip
-            Container(
-              margin: const EdgeInsets.only(right: 16, top: 10, bottom: 10),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.monetization_on, color: Colors.amber, size: 16),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${user.gold}',
-                    style: GoogleFonts.inter(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppColors.primary,
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white54,
-          labelStyle: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 13),
-          tabs: const [
-            Tab(icon: Icon(Icons.pets, size: 18), text: 'Yoldaşlar'),
-            Tab(icon: Icon(Icons.shield_outlined, size: 18), text: 'Kalkan & İksir'),
-            Tab(icon: Icon(Icons.card_giftcard, size: 18), text: 'Sandıklar'),
-          ],
-        ),
-      ),
       body: user == null
           ? const Center(child: CircularProgressIndicator())
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _buildCompanionsTab(user),
-                _buildItemsTab(user),
-                _buildChestsTab(user),
+          : NestedScrollView(
+              headerSliverBuilder: (context, innerBoxIsScrolled) => [
+                SliverAppBar(
+                  floating: true,
+                  snap: true,
+                  backgroundColor: AppColors.background,
+                  elevation: 0,
+                  toolbarHeight: 46,
+                  leading: IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new,
+                      color: Colors.white70,
+                      size: 18,
+                    ),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  title: ShaderMask(
+                    shaderCallback: (bounds) => const LinearGradient(
+                      colors: [Color(0xFFFFC107), Color(0xFFFF5722)], // Altın & Mercan Turuncusu
+                    ).createShader(bounds),
+                    child: Text(
+                      'MAĞAZA',
+                      style: GoogleFonts.inter(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 2,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  actions: [
+                    // Streak shields badge
+                    Container(
+                      margin: const EdgeInsets.only(right: 6, top: 8, bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.blueAccent.withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.shield_rounded,
+                            color: Colors.cyanAccent,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${user.streakShields}/3',
+                            style: GoogleFonts.inter(
+                              color: Colors.cyanAccent,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Clean gold balance chip (read-only)
+                    Container(
+                      margin: const EdgeInsets.only(right: 12, top: 8, bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.monetization_on,
+                            color: Colors.amber,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${user.gold}',
+                            style: GoogleFonts.inter(
+                              color: Colors.amber,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  bottom: PreferredSize(
+                    preferredSize: const Size.fromHeight(42),
+                    child: Container(
+                      height: 36,
+                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: TabBar(
+                        controller: _tabController,
+                        indicator: BoxDecoration(
+                          color: const Color(0xFFFF7043), // Mercan Turuncusu (Mağaza rengi)
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        indicatorSize: TabBarIndicatorSize.tab,
+                        labelColor: Colors.white,
+                        unselectedLabelColor: Colors.white60,
+                        labelStyle: GoogleFonts.inter(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                        tabs: const [
+                          Tab(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.pets, size: 14),
+                                SizedBox(width: 4),
+                                Text('Yoldaş'),
+                              ],
+                            ),
+                          ),
+                          Tab(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.shield_outlined, size: 14),
+                                SizedBox(width: 4),
+                                Text('Kalkan'),
+                              ],
+                            ),
+                          ),
+                          Tab(
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.card_giftcard, size: 14),
+                                SizedBox(width: 4),
+                                Text('Sandık'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ],
+              body: TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildCompanionsTab(user),
+                  _buildItemsTab(user),
+                  _buildChestsTab(user),
+                ],
+              ),
             ),
     );
   }
@@ -146,10 +224,10 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
               color: isEquipped
                   ? companion.primaryColor
                   : isUnlocked
-                      ? Colors.white24
-                      : isLevelLocked
-                          ? Colors.white10
-                          : companion.primaryColor.withValues(alpha: 0.3),
+                  ? Colors.white24
+                  : isLevelLocked
+                  ? Colors.white10
+                  : companion.primaryColor.withValues(alpha: 0.3),
               width: isEquipped ? 2 : 1,
             ),
             boxShadow: isEquipped
@@ -191,20 +269,29 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
                               ),
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
                               decoration: BoxDecoration(
                                 color: isLevelLocked
                                     ? Colors.red.withValues(alpha: 0.2)
                                     : Colors.green.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color: isLevelLocked ? Colors.redAccent.withValues(alpha: 0.5) : Colors.greenAccent.withValues(alpha: 0.5),
+                                  color: isLevelLocked
+                                      ? Colors.redAccent.withValues(alpha: 0.5)
+                                      : Colors.greenAccent.withValues(
+                                          alpha: 0.5,
+                                        ),
                                 ),
                               ),
                               child: Text(
                                 'Seviye ${companion.requiredLevel}+',
                                 style: GoogleFonts.inter(
-                                  color: isLevelLocked ? Colors.redAccent : Colors.greenAccent,
+                                  color: isLevelLocked
+                                      ? Colors.redAccent
+                                      : Colors.greenAccent,
                                   fontSize: 11,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -215,13 +302,22 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
                         const SizedBox(height: 2),
                         Text(
                           companion.species,
-                          style: GoogleFonts.inter(color: companion.accentColor, fontSize: 12, fontWeight: FontWeight.w500),
+                          style: GoogleFonts.inter(
+                            color: companion.accentColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
-                            color: companion.primaryColor.withValues(alpha: 0.12),
+                            color: companion.primaryColor.withValues(
+                              alpha: 0.12,
+                            ),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
@@ -241,7 +337,11 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
               const SizedBox(height: 12),
               Text(
                 companion.flavorText,
-                style: GoogleFonts.inter(color: Colors.white60, fontSize: 12, fontStyle: FontStyle.italic),
+                style: GoogleFonts.inter(
+                  color: Colors.white60,
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
               const SizedBox(height: 14),
               Row(
@@ -250,7 +350,11 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
                   if (!isUnlocked)
                     Row(
                       children: [
-                        const Icon(Icons.monetization_on, color: Colors.amber, size: 20),
+                        const Icon(
+                          Icons.monetization_on,
+                          color: Colors.amber,
+                          size: 20,
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           '${companion.goldCost} Altın',
@@ -264,17 +368,31 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
                     )
                   else
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.blueAccent.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
                         'Envanterinde Mevcut',
-                        style: GoogleFonts.inter(color: Colors.cyanAccent, fontSize: 12, fontWeight: FontWeight.w600),
+                        style: GoogleFonts.inter(
+                          color: Colors.cyanAccent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  _buildCompanionActionButton(user, companion, isUnlocked, isEquipped, isLevelLocked, canAfford),
+                  _buildCompanionActionButton(
+                    user,
+                    companion,
+                    isUnlocked,
+                    isEquipped,
+                    isLevelLocked,
+                    canAfford,
+                  ),
                 ],
               ),
             ],
@@ -294,11 +412,23 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
   ) {
     if (isEquipped) {
       return OutlinedButton.icon(
-        icon: const Icon(Icons.check_circle, color: Colors.greenAccent, size: 16),
-        label: Text('Kuşanılmış', style: GoogleFonts.inter(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+        icon: const Icon(
+          Icons.check_circle,
+          color: Colors.greenAccent,
+          size: 16,
+        ),
+        label: Text(
+          'Kuşanılmış',
+          style: GoogleFonts.inter(
+            color: Colors.greenAccent,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: Colors.greenAccent),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
         onPressed: () async {
           await ref.read(userRepositoryProvider).unequipCompanion(user.uid);
@@ -312,39 +442,60 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
         style: ElevatedButton.styleFrom(
           backgroundColor: companion.primaryColor,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
         onPressed: () async {
-          await ref.read(userRepositoryProvider).equipCompanion(user.uid, companion.id);
+          await ref
+              .read(userRepositoryProvider)
+              .equipCompanion(user.uid, companion.id);
           SoundEffects.playStatUp();
         },
-        child: Text('Kuşan', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+        child: Text(
+          'Kuşan',
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+        ),
       );
     }
 
     if (isLevelLocked) {
       return ElevatedButton.icon(
         icon: const Icon(Icons.lock, size: 14, color: Colors.white38),
-        label: Text('Kilitli (Sv. ${companion.requiredLevel})', style: GoogleFonts.inter(color: Colors.white38, fontSize: 12)),
+        label: Text(
+          'Kilitli (Sv. ${companion.requiredLevel})',
+          style: GoogleFonts.inter(color: Colors.white38, fontSize: 12),
+        ),
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.white10,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
         onPressed: null,
       );
     }
 
     return ElevatedButton.icon(
-      icon: const Icon(Icons.shopping_bag_outlined, size: 16, color: Colors.white),
-      label: Text('Satın Al', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+      icon: const Icon(
+        Icons.shopping_bag_outlined,
+        size: 16,
+        color: Colors.white,
+      ),
+      label: Text(
+        canAfford ? 'Satın Al' : 'Yetersiz Altın (${companion.goldCost} 🪙)',
+        style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+      ),
       style: ElevatedButton.styleFrom(
         backgroundColor: canAfford ? Colors.amber.shade700 : Colors.white12,
-        foregroundColor: Colors.white,
+        foregroundColor: canAfford ? Colors.white : Colors.white38,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       onPressed: canAfford
           ? () async {
-              final success = await ref.read(userRepositoryProvider).buyCompanion(
+              final success = await ref
+                  .read(userRepositoryProvider)
+                  .buyCompanion(
                     user.uid,
                     companion.id,
                     companion.goldCost,
@@ -374,22 +525,31 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
       children: [
         // Streak Shield
         _buildItemCard(
+          user: user,
           icon: Icons.shield_rounded,
           iconColor: Colors.cyanAccent,
           title: 'Streak Kalkanı (Amulet)',
           badge: 'Aktif: ${user.streakShields}/3',
-          description: 'Bir gün uygulamaya girmesen bile serini sıfırlanmaktan kurtarır. Kaçırılan günde otomatik harcanır.',
+          description:
+              'Bir gün uygulamaya girmesen bile serini sıfırlanmaktan kurtarır. Kaçırılan günde otomatik harcanır.',
           cost: 350,
           canBuy: user.gold >= 350 && user.streakShields < 3,
-          buttonText: user.streakShields >= 3 ? 'Kapasite Dolu (3/3)' : 'Satın Al (350 🪙)',
+          buttonText: user.streakShields >= 3
+              ? 'Kapasite Dolu (3/3)'
+              : 'Satın Al (350 🪙)',
           onBuy: () async {
-            final ok = await ref.read(userRepositoryProvider).buyStreakShield(user.uid, 350);
+            final ok = await ref
+                .read(userRepositoryProvider)
+                .buyStreakShield(user.uid, 350);
             if (ok && mounted) {
               SoundEffects.playStatUp();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   backgroundColor: Colors.blueAccent,
-                  content: Text('Streak Kalkanı envantere eklendi! 🛡️', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                  content: Text(
+                    'Streak Kalkanı envantere eklendi! 🛡️',
+                    style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                  ),
                 ),
               );
             }
@@ -398,11 +558,13 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
         const SizedBox(height: 16),
         // 2x XP Potion
         _buildItemCard(
+          user: user,
           icon: Icons.hourglass_top_rounded,
           iconColor: Colors.purpleAccent,
           title: '2x Odaklanma İksiri (1 Saat)',
           badge: 'İksir',
-          description: '1 saat boyunca tamamlanan tüm pomodoro ve görevlerden iki kat XP kazandırır.',
+          description:
+              '1 saat boyunca tamamlanan tüm pomodoro ve görevlerden iki kat XP kazandırır.',
           cost: 250,
           canBuy: user.gold >= 250,
           buttonText: 'Satın Al (250 🪙)',
@@ -414,7 +576,10 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     backgroundColor: Colors.purpleAccent,
-                    content: Text('2x XP Etkisi 1 saatliğine etkinleştirildi! ⚡', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                    content: Text(
+                      '2x XP Etkisi 1 saatliğine etkinleştirildi! ⚡',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 );
               }
@@ -424,11 +589,13 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
         const SizedBox(height: 16),
         // Gold Magnet
         _buildItemCard(
+          user: user,
           icon: Icons.attractions_rounded,
           iconColor: Colors.amber,
           title: 'Altın Mıknatısı',
           badge: 'Güçlendirme',
-          description: 'Bugün yapacağın tüm antrenman koçlukları ve görevlerden +%50 daha fazla altın kazandırır.',
+          description:
+              'Bugün yapacağın tüm antrenman koçlukları ve görevlerden +%50 daha fazla altın kazandırır.',
           cost: 300,
           canBuy: user.gold >= 300,
           buttonText: 'Satın Al (300 🪙)',
@@ -440,7 +607,10 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     backgroundColor: Colors.amber.shade700,
-                    content: Text('Altın Mıknatısı aktif! Görevlerden bereket fışkırıyor 🧲', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                    content: Text(
+                      'Altın Mıknatısı aktif! Görevlerden +%50 daha fazla altın kazanacaksın! 🌟',
+                      style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 );
               }
@@ -452,6 +622,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
   }
 
   Widget _buildItemCard({
+    required UserModel user,
     required IconData icon,
     required Color iconColor,
     required String title,
@@ -488,15 +659,32 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: GoogleFonts.inter(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(
+                      title,
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 2),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white10,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(badge, style: GoogleFonts.inter(color: iconColor, fontSize: 11, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        badge,
+                        style: GoogleFonts.inter(
+                          color: iconColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -504,19 +692,27 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
             ],
           ),
           const SizedBox(height: 12),
-          Text(description, style: GoogleFonts.inter(color: Colors.white70, fontSize: 13)),
+          Text(
+            description,
+            style: GoogleFonts.inter(color: Colors.white70, fontSize: 13),
+          ),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: canBuy ? AppColors.primary : Colors.white10,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                backgroundColor: canBuy ? AppColors.primary : Colors.white12,
+                foregroundColor: canBuy ? Colors.white : Colors.white38,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
               onPressed: canBuy ? onBuy : null,
-              child: Text(buttonText, style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+              child: Text(
+                canBuy ? buttonText : 'Yetersiz Altın ($cost 🪙)',
+                style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
         ],
@@ -546,7 +742,8 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
           cost: 900,
           color: Colors.orangeAccent,
           icon: '👑',
-          perks: 'İçerisinden Efsanevi Seviye Işıltılı Kozmetikler & Muazzam Stat artışları çıkar.',
+          perks:
+              'İçerisinden Efsanevi Seviye Işıltılı Kozmetikler & Muazzam Stat artışları çıkar.',
         ),
       ],
     );
@@ -571,10 +768,7 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withValues(alpha: 0.3)),
         boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.15),
-            blurRadius: 10,
-          ),
+          BoxShadow(color: color.withValues(alpha: 0.15), blurRadius: 10),
         ],
       ),
       child: Column(
@@ -588,48 +782,87 @@ class _ShopScreenState extends ConsumerState<ShopScreen> with SingleTickerProvid
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: GoogleFonts.inter(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(
+                      name,
+                      style: GoogleFonts.inter(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       'Envanterinde: $ownedCount Adet',
-                      style: GoogleFonts.inter(color: color, fontSize: 12, fontWeight: FontWeight.w600),
+                      style: GoogleFonts.inter(
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ],
                 ),
               ),
               Row(
                 children: [
-                  const Icon(Icons.monetization_on, color: Colors.amber, size: 18),
+                  const Icon(
+                    Icons.monetization_on,
+                    color: Colors.amber,
+                    size: 18,
+                  ),
                   const SizedBox(width: 4),
-                  Text('$cost', style: GoogleFonts.inter(color: Colors.amber, fontWeight: FontWeight.w900, fontSize: 16)),
+                  Text(
+                    '$cost',
+                    style: GoogleFonts.inter(
+                      color: Colors.amber,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
                 ],
               ),
             ],
           ),
           const SizedBox(height: 12),
-          Text(perks, style: GoogleFonts.inter(color: Colors.white70, fontSize: 12)),
+          Text(
+            perks,
+            style: GoogleFonts.inter(color: Colors.white70, fontSize: 12),
+          ),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              icon: const Icon(Icons.add_shopping_cart, size: 18),
-              label: Text('Satın Al ($cost 🪙)', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+              icon: Icon(canBuy ? Icons.add_shopping_cart : Icons.lock_outline_rounded, size: 18),
+              label: Text(
+                canBuy ? 'Satın Al ($cost 🪙)' : 'Yetersiz Altın ($cost 🪙)',
+                style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+              ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: canBuy ? color : Colors.white12,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                foregroundColor: canBuy ? Colors.white : Colors.white38,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
               onPressed: canBuy
                   ? () async {
-                      await ref.read(userRepositoryProvider).spendGold(user.uid, cost);
-                      await ref.read(userRepositoryProvider).addChest(user.uid, rarity);
+                      await ref
+                          .read(userRepositoryProvider)
+                          .spendGold(user.uid, cost);
+                      await ref
+                          .read(userRepositoryProvider)
+                          .addChest(user.uid, rarity);
                       SoundEffects.playStatUp();
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             backgroundColor: color,
-                            content: Text('$name envanterine eklendi! Gardıroptan açabilirsin 🎉', style: GoogleFonts.inter(fontWeight: FontWeight.bold)),
+                            content: Text(
+                              '$name envanterine eklendi! Gardıroptan açabilirsin 🎉',
+                              style: GoogleFonts.inter(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         );
                       }

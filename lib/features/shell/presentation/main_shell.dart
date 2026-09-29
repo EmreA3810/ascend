@@ -13,7 +13,7 @@ import '../../../core/widgets/level_up_overlay.dart';
 import '../../user/data/user_model.dart';
 import '../../onboarding/presentation/focus_questionnaire_overlay.dart';
 import '../providers/shell_provider.dart';
-import '../../../core/widgets/global_top_music_bar.dart';
+import '../../../core/widgets/global_bottom_music_bar.dart';
 import '../../../core/widgets/particle_background.dart';
 
 class MainShell extends ConsumerStatefulWidget {
@@ -70,24 +70,23 @@ class _MainShellState extends ConsumerState<MainShell> {
           const Positioned.fill(child: IgnorePointer(child: ParticleBackground())),
           SafeArea(
             bottom: false,
-            child: Column(
-              children: [
-                const GlobalTopMusicBar(),
-                Expanded(
-                  child: Stack(
-                    children: _screens.asMap().entries.map((entry) {
-                      return Positioned.fill(
-                        child: _buildScreenLayer(entry.key, entry.value, currentIndex),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
+            child: Stack(
+              children: _screens.asMap().entries.map((entry) {
+                return Positioned.fill(
+                  child: _buildScreenLayer(entry.key, entry.value, currentIndex),
+                );
+              }).toList(),
             ),
           ),
         ],
       ),
-      bottomNavigationBar: _buildBottomNav(uncompletedCount, currentIndex),
+      bottomNavigationBar: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const GlobalBottomMusicBar(),
+          _buildBottomNav(uncompletedCount, currentIndex),
+        ],
+      ),
     );
   }
 
@@ -162,15 +161,15 @@ class _MainShellState extends ConsumerState<MainShell> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.cardBackground,
-        border: Border(
+        border: const Border(
           top: BorderSide(
-            color: AppColors.primary.withValues(alpha: 0.2),
+            color: Colors.white10,
             width: 1,
           ),
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.08),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 20,
             spreadRadius: 0,
             offset: const Offset(0, -4),
@@ -197,9 +196,20 @@ class _MainShellState extends ConsumerState<MainShell> {
 
   Widget _buildNavItem(int index, IconData icon, String label, int currentIndex, {int badgeCount = 0}) {
     final isSelected = currentIndex == index;
+
+    // Her sekmenin kendi RPG renk kimliği
+    final Color tabColor = switch (index) {
+      0 => AppColors.primary, // 0xFF7C4DFF - Ascend Moru (Ana Sayfa)
+      1 => const Color(0xFF10B981), // Zümrüt Yeşili (Görevler)
+      2 => const Color(0xFFFF9800), // Ateş Turuncusu (Odak)
+      3 => const Color(0xFFFFD700), // Kupa Altını (Lig & Kulüp)
+      4 => const Color(0xFFF43F5E), // Siber Gül Pembesi (Karakter)
+      _ => AppColors.primary,
+    };
+
     Widget iconWidget = Icon(
       icon,
-      color: isSelected ? AppColors.primary : AppColors.textSecondary,
+      color: isSelected ? tabColor : AppColors.textSecondary,
       size: 24,
     );
 
@@ -222,7 +232,7 @@ class _MainShellState extends ConsumerState<MainShell> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected
-              ? AppColors.primary.withValues(alpha: 0.15)
+              ? tabColor.withValues(alpha: 0.15)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
@@ -236,7 +246,7 @@ class _MainShellState extends ConsumerState<MainShell> {
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                color: isSelected ? tabColor : AppColors.textSecondary,
               ),
             ),
           ],
