@@ -54,7 +54,10 @@ class CharacterScreen extends ConsumerWidget {
               toolbarHeight: 46,
               title: ShaderMask(
                 shaderCallback: (bounds) => const LinearGradient(
-                  colors: [Color(0xFFF43F5E), Color(0xFFFB7185)], // Siber Gül Pembesi & Mercan
+                  colors: [
+                    Color(0xFFF43F5E),
+                    Color(0xFFFB7185),
+                  ], // Siber Gül Pembesi & Mercan
                 ).createShader(bounds),
                 child: Text(
                   'KARAKTER',
@@ -70,7 +73,10 @@ class CharacterScreen extends ConsumerWidget {
                 preferredSize: const Size.fromHeight(42),
                 child: Container(
                   height: 36,
-                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
@@ -83,7 +89,10 @@ class CharacterScreen extends ConsumerWidget {
                     indicatorSize: TabBarIndicatorSize.tab,
                     labelColor: Colors.white,
                     unselectedLabelColor: Colors.white60,
-                    labelStyle: GoogleFonts.inter(fontWeight: FontWeight.w900, fontSize: 12),
+                    labelStyle: GoogleFonts.inter(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12,
+                    ),
                     tabs: const [
                       Tab(
                         child: Row(
@@ -114,23 +123,40 @@ class CharacterScreen extends ConsumerWidget {
           body: TabBarView(
             children: [
               userAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
-                error: (err, stack) => Center(child: Text('Hata: $err', style: GoogleFonts.inter(color: AppColors.error))),
+                loading: () => const Center(
+                  child: CircularProgressIndicator(color: AppColors.primary),
+                ),
+                error: (err, stack) => Center(
+                  child: Text(
+                    'Hata: $err',
+                    style: GoogleFonts.inter(color: AppColors.error),
+                  ),
+                ),
                 data: (user) {
                   if (user == null) {
-                    return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+                    return const Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.primary,
+                      ),
+                    );
                   }
 
                   // Fetch achievements
                   final achievements = achievementsAsync.value ?? [];
-                  final unlockedAchievements = achievements.where((a) => a.isUnlocked).toList();
+                  final unlockedAchievements = achievements
+                      .where((a) => a.isUnlocked)
+                      .toList();
 
                   // Merge activities
-                  final completedQuests = dailyQuestsAsync.value?.where((q) => q.isCompleted).toList() ?? [];
+                  final completedQuests =
+                      dailyQuestsAsync.value
+                          ?.where((q) => q.isCompleted)
+                          .toList() ??
+                      [];
                   final completedSessions = todaySessionsAsync.value ?? [];
 
                   final List<Map<String, dynamic>> activities = [];
-                  
+
                   for (final q in completedQuests) {
                     activities.add({
                       'title': '${q.title} Tamamlandı',
@@ -149,20 +175,41 @@ class CharacterScreen extends ConsumerWidget {
                     });
                   }
 
-                  activities.sort((a, b) => (b['time'] as DateTime).compareTo(a['time'] as DateTime));
+                  activities.sort(
+                    (a, b) => (b['time'] as DateTime).compareTo(
+                      a['time'] as DateTime,
+                    ),
+                  );
 
                   return SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _revealSection(order: 0, child: _buildCharacterHero(context, ref, user)),
+                        _revealSection(
+                          order: 0,
+                          child: _buildCharacterHero(context, ref, user),
+                        ),
                         const SizedBox(height: 20),
-                        _revealSection(order: 1, child: _buildStatsSection(context, ref, user)),
+                        _revealSection(
+                          order: 1,
+                          child: _buildStatsSection(context, ref, user),
+                        ),
                         const SizedBox(height: 20),
-                        _revealSection(order: 2, child: _buildAchievementsSection(unlockedAchievements)),
+                        _revealSection(
+                          order: 2,
+                          child: _buildAchievementsSection(
+                            unlockedAchievements,
+                          ),
+                        ),
                         const SizedBox(height: 20),
-                        _revealSection(order: 3, child: _buildTimelineSection(activities)),
+                        _revealSection(
+                          order: 3,
+                          child: _buildTimelineSection(activities),
+                        ),
                         const SizedBox(height: 30),
                       ],
                     ),
@@ -198,9 +245,17 @@ class CharacterScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCharacterHero(BuildContext context, WidgetRef ref, UserModel user) {
-    final xpRatio = user.xpToNextLevel > 0 ? (user.xp / user.xpToNextLevel).clamp(0.0, 1.0) : 0.0;
-    final companion = user.equippedCompanion != null ? CompanionData.getById(user.equippedCompanion!) : null;
+  Widget _buildCharacterHero(
+    BuildContext context,
+    WidgetRef ref,
+    UserModel user,
+  ) {
+    final xpRatio = user.xpToNextLevel > 0
+        ? (user.xp / user.xpToNextLevel).clamp(0.0, 1.0)
+        : 0.0;
+    final companion = user.equippedCompanion != null
+        ? CompanionData.getById(user.equippedCompanion!)
+        : null;
 
     return GlassmorphicCard(
       borderColor: AppColors.primary.withValues(alpha: 0.35),
@@ -217,7 +272,9 @@ class CharacterScreen extends ConsumerWidget {
                 onTap: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const WardrobeScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => const WardrobeScreen(),
+                    ),
                   );
                 },
                 child: Column(
@@ -235,7 +292,9 @@ class CharacterScreen extends ConsumerWidget {
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.secondary.withValues(alpha: 0.35),
+                                color: AppColors.secondary.withValues(
+                                  alpha: 0.35,
+                                ),
                                 blurRadius: 14,
                                 spreadRadius: 2,
                               ),
@@ -268,16 +327,25 @@ class CharacterScreen extends ConsumerWidget {
                     const SizedBox(height: 6),
                     // Gardırop butonu
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.secondary.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.4)),
+                        border: Border.all(
+                          color: AppColors.secondary.withValues(alpha: 0.4),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.checkroom_rounded, color: AppColors.secondary, size: 12),
+                          const Icon(
+                            Icons.checkroom_rounded,
+                            color: AppColors.secondary,
+                            size: 12,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             'Gardırop',
@@ -306,7 +374,10 @@ class CharacterScreen extends ConsumerWidget {
                       children: [
                         // Kompakt Şık Level Rozeti
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
                               colors: [AppColors.primary, AppColors.secondary],
@@ -354,17 +425,28 @@ class CharacterScreen extends ConsumerWidget {
                           onTap: () => TitleSelectionSheet.show(context, user),
                           borderRadius: BorderRadius.circular(12),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
-                              color: AppColors.secondary.withValues(alpha: 0.15),
+                              color: AppColors.secondary.withValues(
+                                alpha: 0.15,
+                              ),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.secondary.withValues(alpha: 0.35)),
+                              border: Border.all(
+                                color: AppColors.secondary.withValues(
+                                  alpha: 0.35,
+                                ),
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  user.title.isNotEmpty ? user.title : 'Yeni Savaşçı',
+                                  user.title.isNotEmpty
+                                      ? user.title
+                                      : 'Yeni Savaşçı',
                                   style: GoogleFonts.inter(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
@@ -372,14 +454,21 @@ class CharacterScreen extends ConsumerWidget {
                                   ),
                                 ),
                                 const SizedBox(width: 4),
-                                const Icon(Icons.edit_rounded, color: AppColors.secondary, size: 12),
+                                const Icon(
+                                  Icons.edit_rounded,
+                                  color: AppColors.secondary,
+                                  size: 12,
+                                ),
                               ],
                             ),
                           ),
                         ),
                         if (user.clubTag != null && user.clubTag!.isNotEmpty)
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 1,
+                            ),
                             decoration: BoxDecoration(
                               color: AppColors.primary.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(6),
@@ -402,20 +491,33 @@ class CharacterScreen extends ConsumerWidget {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.orange.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                            border: Border.all(
+                              color: Colors.orange.withValues(alpha: 0.3),
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Icon(Icons.local_fire_department, color: Colors.orange, size: 13),
+                              const Icon(
+                                Icons.local_fire_department,
+                                color: Colors.orange,
+                                size: 13,
+                              ),
                               const SizedBox(width: 3),
                               Text(
                                 '${user.streak} Gün Seri',
-                                style: GoogleFonts.inter(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 11),
+                                style: GoogleFonts.inter(
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                ),
                               ),
                             ],
                           ),
@@ -423,7 +525,10 @@ class CharacterScreen extends ConsumerWidget {
                         if (user.streakShields > 0) ...[
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.cyan.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(10),
@@ -431,11 +536,19 @@ class CharacterScreen extends ConsumerWidget {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.shield_rounded, color: Colors.cyanAccent, size: 12),
+                                const Icon(
+                                  Icons.shield_rounded,
+                                  color: Colors.cyanAccent,
+                                  size: 12,
+                                ),
                                 const SizedBox(width: 3),
                                 Text(
                                   '${user.streakShields}',
-                                  style: GoogleFonts.inter(color: Colors.cyanAccent, fontWeight: FontWeight.bold, fontSize: 11),
+                                  style: GoogleFonts.inter(
+                                    color: Colors.cyanAccent,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                  ),
                                 ),
                               ],
                             ),
@@ -467,11 +580,19 @@ class CharacterScreen extends ConsumerWidget {
                 children: [
                   Text(
                     'Deneyim (XP)',
-                    style: GoogleFonts.inter(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 11),
+                    style: GoogleFonts.inter(
+                      color: AppColors.success,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
                   ),
                   Text(
                     '${user.xp} / ${user.xpToNextLevel} XP',
-                    style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontWeight: FontWeight.w600),
+                    style: GoogleFonts.inter(
+                      color: AppColors.textSecondary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
@@ -490,7 +611,9 @@ class CharacterScreen extends ConsumerWidget {
                     child: Container(
                       height: 8,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [AppColors.success, AppColors.secondary]),
+                        gradient: const LinearGradient(
+                          colors: [AppColors.success, AppColors.secondary],
+                        ),
                         borderRadius: BorderRadius.circular(4),
                         boxShadow: [
                           BoxShadow(
@@ -510,36 +633,55 @@ class CharacterScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildFocusAreasRow(BuildContext context, WidgetRef ref, UserModel user) {
+  Widget _buildFocusAreasRow(
+    BuildContext context,
+    WidgetRef ref,
+    UserModel user,
+  ) {
     final areas = user.focusAreas.where((a) => a != 'skipped').toList();
-    
+
     String getLabel(String id) {
       switch (id) {
-        case 'academic': return 'Ders';
-        case 'fitness': return 'Spor';
-        case 'reading': return 'Okuma';
-        case 'coding': return 'Kod';
-        default: return id;
+        case 'academic':
+          return 'Ders';
+        case 'fitness':
+          return 'Spor';
+        case 'reading':
+          return 'Okuma';
+        case 'coding':
+          return 'Kod';
+        default:
+          return id;
       }
     }
 
     IconData getIcon(String id) {
       switch (id) {
-        case 'academic': return Icons.school_rounded;
-        case 'fitness': return Icons.fitness_center_rounded;
-        case 'reading': return Icons.menu_book_rounded;
-        case 'coding': return Icons.code_rounded;
-        default: return Icons.star_rounded;
+        case 'academic':
+          return Icons.school_rounded;
+        case 'fitness':
+          return Icons.fitness_center_rounded;
+        case 'reading':
+          return Icons.menu_book_rounded;
+        case 'coding':
+          return Icons.code_rounded;
+        default:
+          return Icons.star_rounded;
       }
     }
 
     Color getColor(String id) {
       switch (id) {
-        case 'academic': return AppColors.statKnowledge;
-        case 'fitness': return AppColors.statStrength;
-        case 'reading': return AppColors.primary;
-        case 'coding': return AppColors.statFocus;
-        default: return AppColors.textSecondary;
+        case 'academic':
+          return AppColors.statKnowledge;
+        case 'fitness':
+          return AppColors.statStrength;
+        case 'reading':
+          return AppColors.primary;
+        case 'coding':
+          return AppColors.statFocus;
+        default:
+          return AppColors.textSecondary;
       }
     }
 
@@ -555,17 +697,27 @@ class CharacterScreen extends ConsumerWidget {
               if (areas.isEmpty)
                 Text(
                   'Odak alanı seçilmedi',
-                  style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 11, fontStyle: FontStyle.italic),
+                  style: GoogleFonts.inter(
+                    color: AppColors.textSecondary,
+                    fontSize: 11,
+                    fontStyle: FontStyle.italic,
+                  ),
                 )
               else
                 ...areas.map((id) {
                   final color = getColor(id);
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
+                      border: Border.all(
+                        color: color.withValues(alpha: 0.3),
+                        width: 1,
+                      ),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -574,7 +726,11 @@ class CharacterScreen extends ConsumerWidget {
                         const SizedBox(width: 4),
                         Text(
                           getLabel(id),
-                          style: GoogleFonts.inter(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+                          style: GoogleFonts.inter(
+                            color: color,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -587,18 +743,30 @@ class CharacterScreen extends ConsumerWidget {
         IconButton(
           constraints: const BoxConstraints(),
           padding: EdgeInsets.zero,
-          icon: const Icon(Icons.settings_suggest_rounded, color: AppColors.secondary, size: 18),
+          icon: const Icon(
+            Icons.settings_suggest_rounded,
+            color: AppColors.secondary,
+            size: 18,
+          ),
           onPressed: () => _showEditFocusAreasSheet(context, ref, user),
         ),
       ],
     );
   }
 
-  void _showEditFocusAreasSheet(BuildContext context, WidgetRef ref, UserModel user) {
+  void _showEditFocusAreasSheet(
+    BuildContext context,
+    WidgetRef ref,
+    UserModel user,
+  ) {
     FocusAreaEditSheet.show(context, ref, user);
   }
 
-  Widget _buildStatsSection(BuildContext context, WidgetRef ref, UserModel user) {
+  Widget _buildStatsSection(
+    BuildContext context,
+    WidgetRef ref,
+    UserModel user,
+  ) {
     final str = (user.stats['strength'] ?? 0).toDouble();
     final energy = (user.stats['energy'] ?? 0).toDouble();
     final focus = (user.stats['focus'] ?? 0).toDouble();
@@ -613,24 +781,47 @@ class CharacterScreen extends ConsumerWidget {
           children: [
             Row(
               children: [
-                const Icon(Icons.auto_awesome, color: AppColors.secondary, size: 20),
+                const Icon(
+                  Icons.auto_awesome,
+                  color: AppColors.secondary,
+                  size: 20,
+                ),
                 const SizedBox(width: 8),
-                Text('Karakter Nitelikleri', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(
+                  'Karakter Nitelikleri',
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
               ],
             ),
             if (user.statPoints > 0)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 4,
+                ),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(colors: [AppColors.gold, Colors.deepOrangeAccent]),
+                  gradient: const LinearGradient(
+                    colors: [AppColors.gold, Colors.deepOrangeAccent],
+                  ),
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
-                    BoxShadow(color: AppColors.gold.withValues(alpha: 0.4), blurRadius: 6),
+                    BoxShadow(
+                      color: AppColors.gold.withValues(alpha: 0.4),
+                      blurRadius: 6,
+                    ),
                   ],
                 ),
                 child: Text(
                   '⚡ ${user.statPoints} Boş Puan',
-                  style: GoogleFonts.inter(color: Colors.black, fontWeight: FontWeight.w800, fontSize: 11),
+                  style: GoogleFonts.inter(
+                    color: Colors.black,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 11,
+                  ),
                 ),
               ),
           ],
@@ -668,15 +859,23 @@ class CharacterScreen extends ConsumerWidget {
                       titlePositionPercentageOffset: 0.2,
                       getTitle: (index, angle) {
                         switch (index) {
-                          case 0: return const RadarChartTitle(text: 'STR');
-                          case 1: return const RadarChartTitle(text: 'ENG');
-                          case 2: return const RadarChartTitle(text: 'FOC');
-                          case 3: return const RadarChartTitle(text: 'KNW');
-                          default: return const RadarChartTitle(text: '');
+                          case 0:
+                            return const RadarChartTitle(text: 'STR');
+                          case 1:
+                            return const RadarChartTitle(text: 'ENG');
+                          case 2:
+                            return const RadarChartTitle(text: 'FOC');
+                          case 3:
+                            return const RadarChartTitle(text: 'KNW');
+                          default:
+                            return const RadarChartTitle(text: '');
                         }
                       },
                       tickCount: 3,
-                      ticksTextStyle: const TextStyle(color: Colors.white24, fontSize: 8),
+                      ticksTextStyle: const TextStyle(
+                        color: Colors.white24,
+                        fontSize: 8,
+                      ),
                       gridBorderData: const BorderSide(color: Colors.white10),
                       tickBorderData: const BorderSide(color: Colors.white10),
                     ),
@@ -695,13 +894,33 @@ class CharacterScreen extends ConsumerWidget {
                 crossAxisSpacing: 8,
                 children: [
                   if (visibleStats.contains('strength'))
-                    _buildRPGStatCard('STR', user.stats['strength'] ?? 0, AppColors.statStrength, 'Güç'),
+                    _buildRPGStatCard(
+                      'STR',
+                      user.stats['strength'] ?? 0,
+                      AppColors.statStrength,
+                      'Güç',
+                    ),
                   if (visibleStats.contains('energy'))
-                    _buildRPGStatCard('ENG', user.stats['energy'] ?? 0, AppColors.statEnergy, 'Enerji'),
+                    _buildRPGStatCard(
+                      'ENG',
+                      user.stats['energy'] ?? 0,
+                      AppColors.statEnergy,
+                      'Enerji',
+                    ),
                   if (visibleStats.contains('focus'))
-                    _buildRPGStatCard('FOC', user.stats['focus'] ?? 0, AppColors.statFocus, 'Odak'),
+                    _buildRPGStatCard(
+                      'FOC',
+                      user.stats['focus'] ?? 0,
+                      AppColors.statFocus,
+                      'Odak',
+                    ),
                   if (visibleStats.contains('knowledge'))
-                    _buildRPGStatCard('KNW', user.stats['knowledge'] ?? 0, AppColors.statKnowledge, 'Bilgi'),
+                    _buildRPGStatCard(
+                      'KNW',
+                      user.stats['knowledge'] ?? 0,
+                      AppColors.statKnowledge,
+                      'Bilgi',
+                    ),
                 ],
               ),
             ],
@@ -724,7 +943,11 @@ class CharacterScreen extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.stars_rounded, color: AppColors.secondary, size: 16),
+              const Icon(
+                Icons.stars_rounded,
+                color: AppColors.secondary,
+                size: 16,
+              ),
               const SizedBox(width: 6),
               Text(
                 'AKTİF ODAK PROFİLİ',
@@ -758,7 +981,11 @@ class CharacterScreen extends ConsumerWidget {
                     child: Center(
                       child: Text(
                         code,
-                        style: GoogleFonts.inter(color: color, fontWeight: FontWeight.bold, fontSize: 11),
+                        style: GoogleFonts.inter(
+                          color: color,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
                       ),
                     ),
                   ),
@@ -770,8 +997,22 @@ class CharacterScreen extends ConsumerWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(label, style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
-                            Text('$value / 100', style: GoogleFonts.inter(color: color, fontWeight: FontWeight.bold, fontSize: 12)),
+                            Text(
+                              label,
+                              style: GoogleFonts.inter(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              '$value / 100',
+                              style: GoogleFonts.inter(
+                                color: color,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 4),
@@ -796,7 +1037,12 @@ class CharacterScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildRPGStatCard(String name, int value, Color color, [String? label]) {
+  Widget _buildRPGStatCard(
+    String name,
+    int value,
+    Color color, [
+    String? label,
+  ]) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -811,10 +1057,7 @@ class CharacterScreen extends ConsumerWidget {
               end: Alignment.bottomRight,
             ),
             boxShadow: [
-              BoxShadow(
-                color: color.withValues(alpha: 0.3),
-                blurRadius: 8,
-              ),
+              BoxShadow(color: color.withValues(alpha: 0.3), blurRadius: 8),
             ],
           ),
           child: Center(
@@ -841,112 +1084,91 @@ class CharacterScreen extends ConsumerWidget {
         if (label != null)
           Text(
             label,
-            style: GoogleFonts.inter(
-              fontSize: 10,
-              color: Colors.white54,
-            ),
+            style: GoogleFonts.inter(fontSize: 10, color: Colors.white54),
           ),
       ],
     );
   }
 
-  Widget _buildAchievementsSection(List<AchievementModel> unlockedAchievements) {
+  Widget _buildAchievementsSection(
+    List<AchievementModel> unlockedAchievements,
+  ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Icon(Icons.emoji_events_rounded, color: AppColors.gold, size: 20),
+            const Icon(
+              Icons.emoji_events_rounded,
+              color: AppColors.gold,
+              size: 20,
+            ),
             const SizedBox(width: 8),
-            Text('Açılan Başarımlar (${unlockedAchievements.length})', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(
+              'Başarımlar 🏆',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 12),
-        unlockedAchievements.isEmpty
-            ? Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          decoration: BoxDecoration(
+            color: AppColors.cardBackground,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.gold.withValues(alpha: 0.25)),
+            gradient: LinearGradient(
+              colors: [
+                AppColors.cardBackground,
+                AppColors.gold.withValues(alpha: 0.05),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(16),
+                  color: AppColors.gold.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
                 ),
-                child: Center(
-                  child: Text(
-                    'Henüz açılmış başarım bulunmuyor.',
-                    style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13),
-                  ),
+                child: const Icon(
+                  Icons.hourglass_top_rounded,
+                  color: AppColors.gold,
+                  size: 28,
                 ),
-              )
-            : GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.4,
-                ),
-                itemCount: unlockedAchievements.length,
-                itemBuilder: (ctx, i) {
-                  final a = unlockedAchievements[i];
-                  return Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.cardBackground,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: AppColors.gold.withValues(alpha: 0.4),
-                      ),
-                      boxShadow: [
-                        BoxShadow(color: AppColors.gold.withValues(alpha: 0.05), blurRadius: 8),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Icon(_getAchievementIcon(a.category), color: AppColors.gold, size: 22),
-                            const Icon(Icons.lock_open_rounded, color: AppColors.gold, size: 16),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          a.title,
-                          style: GoogleFonts.inter(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          a.description,
-                          style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 10),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  );
-                },
               ),
+              const SizedBox(height: 12),
+              Text(
+                'Çok Yakında! ⏳',
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Özel başarım rozetleri ve ekstra ganimet ödülleri çok yakında...',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  height: 1.4,
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
-  }
-
-  IconData _getAchievementIcon(String category) {
-    switch (category) {
-      case 'streak': return Icons.local_fire_department_rounded;
-      case 'pomodoro': return Icons.timer_rounded;
-      case 'quest': return Icons.assignment_turned_in_rounded;
-      case 'level': return Icons.trending_up_rounded;
-      case 'stat': return Icons.insights_rounded;
-      default: return Icons.emoji_events_rounded;
-    }
   }
 
   Widget _buildTimelineSection(List<Map<String, dynamic>> activities) {
@@ -955,9 +1177,20 @@ class CharacterScreen extends ConsumerWidget {
       children: [
         Row(
           children: [
-            const Icon(Icons.timeline_rounded, color: AppColors.secondary, size: 20),
+            const Icon(
+              Icons.timeline_rounded,
+              color: AppColors.secondary,
+              size: 20,
+            ),
             const SizedBox(width: 8),
-            Text('Aktivite Geçmişi', style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+            Text(
+              'Aktivite Geçmişi',
+              style: GoogleFonts.inter(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -972,7 +1205,10 @@ class CharacterScreen extends ConsumerWidget {
                 child: Center(
                   child: Text(
                     'Henüz aktivite geçmişi yok.',
-                    style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13),
+                    style: GoogleFonts.inter(
+                      color: AppColors.textSecondary,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               )
@@ -981,7 +1217,9 @@ class CharacterScreen extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: AppColors.cardBackground,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.1)),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                  ),
                 ),
                 child: ListView.builder(
                   shrinkWrap: true,
@@ -1014,7 +1252,9 @@ class CharacterScreen extends ConsumerWidget {
                                 Expanded(
                                   child: Container(
                                     width: 2,
-                                    color: AppColors.primary.withValues(alpha: 0.2),
+                                    color: AppColors.primary.withValues(
+                                      alpha: 0.2,
+                                    ),
                                   ),
                                 ),
                             ],

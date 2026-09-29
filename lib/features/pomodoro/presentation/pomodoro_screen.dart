@@ -404,12 +404,14 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     }
 
     final wasRunning = _isRunning;
+    final wasWorking = !_isBreak;
     _updateState(() {
       _isRunning = false;
-      _secondsLeft = _isBreak ? _selectedBreakDuration * 60 : _selectedWorkDuration * 60;
+      _isBreak = false; // Kareye basınca en baş olan çalışma/odak moduna geri döner
+      _secondsLeft = _selectedWorkDuration * 60;
     });
 
-    if (wasRunning && !_isBreak) {
+    if (wasRunning && wasWorking) {
       if (_selectedFocusMode == 'battle') {
         final boss = _selectedBoss ?? BossCatalog.getBossForFocusArea(_selectedFocusArea);
         _showBossEscapedDialog(boss);
@@ -718,8 +720,8 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
       final weeklyQuests = ref.read(weeklyQuestsProvider).value ?? [];
       final customQuests = ref.read(customQuestsProvider).value ?? [];
 
-      // 1. Increment standard Pomodoro completion daily quests
-      final seansQuests = dailyQuests.where((q) => q.unit == 'seans' && !q.isCompleted);
+      // 1. Increment standard Pomodoro completion daily and instant quests
+      final seansQuests = [...dailyQuests, ...customQuests].where((q) => q.unit == 'seans' && !q.isCompleted);
       for (final q in seansQuests) {
         backgroundTasks.add(questRepo.incrementQuestProgress(uid, q.id, 1));
       }

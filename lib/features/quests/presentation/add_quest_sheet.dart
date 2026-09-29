@@ -41,7 +41,7 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
     if (quest != null) {
       _titleController.text = quest.title;
       _targetValueController.text = quest.targetValue.toString();
-      _selectedCategory = quest.category == 'custom' ? 'instant' : quest.category;
+      _selectedCategory = (quest.category == 'custom' || quest.category == 'instant') ? 'daily' : quest.category;
       _selectedStatBoost = quest.statBoost;
       _selectedIcon = quest.iconName;
       _selectedUnit = quest.unit;
@@ -360,7 +360,6 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
                 children: [
                   {'val': 'daily', 'label': 'Günlük', 'icon': Icons.today_rounded},
                   {'val': 'weekly', 'label': 'Haftalık', 'icon': Icons.date_range_rounded},
-                  {'val': 'instant', 'label': 'Anlık Görev', 'icon': Icons.bolt_rounded},
                 ].map((cat) {
                   final isSelected = _selectedCategory == cat['val'];
                   return Expanded(
@@ -493,7 +492,7 @@ class _AddQuestBottomSheetState extends ConsumerState<AddQuestBottomSheet> {
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            '+$_calculatedXp Altın 🪙',
+                            '+${QuestXpCalculator.calculateGold(xpReward: _calculatedXp)} Altın 🪙',
                             style: GoogleFonts.inter(
                               color: AppColors.success,
                               fontSize: 11,

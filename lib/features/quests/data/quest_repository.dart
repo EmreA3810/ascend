@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../user/data/user_repository.dart';
+import '../domain/quest_xp_calculator.dart';
 import 'quest_model.dart';
 
 class QuestRepository {
@@ -37,73 +38,340 @@ class QuestRepository {
         .toList());
   }
 
-  /// Anlık / Hızlı görevleri dinler (category == 'instant' veya eski 'custom')
+  static const Set<String> validInstantTitles = {
+    // Academic (Ders)
+    '15 Dk Hızlı Ders Sprinti',
+    '25 Dk Pomodoro Odak',
+    '1 Ders Seansı Notu Kaydet',
+    // Fitness (Spor)
+    '1 Set Mola Egzersizi',
+    '15 Dk Tempolu Yürüyüş / Esneme',
+    '20 Şınav veya 40 Sn Plank',
+    // Coding (Yazılım)
+    '15 Dk Kodlama Sprinti',
+    '25 Dk Odaklı Hata Çözümü',
+    '1 Kod Seansı Notu Kaydet',
+    // Reading (Okuma)
+    '5 Sayfa Kitap Oku',
+    '15 Dk Odaklı Okuma',
+    '1 Alıntı veya Not Kaydet',
+    // Universal (Genel Sağlık & Alışkanlık)
+    '1 Bardak Su İç & Esne',
+    '5 Dk Zihinsel Mola & Nefes',
+    // Starter compat
+    '15 Dk Hızlı Odak Sprinti',
+    'Hızlı Soru / Kod İncelemesi',
+  };
+
+  /// Anlık / Hızlı görevleri dinler (yalnızca sistem tarafından atanan geçerli görevler)
   Stream<List<QuestModel>> watchInstantQuests(String uid) {
-    return _questsCol(uid).snapshots().map((snap) => snap.docs
-        .map((doc) => QuestModel.fromMap(doc.data(), doc.id))
-        .where((q) => q.category == 'instant' || q.category == 'custom')
-        .toList());
+    return _questsCol(uid).snapshots().map((snap) {
+      final list = <QuestModel>[];
+      for (final doc in snap.docs) {
+        final data = doc.data();
+        final cat = data['category'] as String?;
+        final title = (data['title'] as String? ?? '').trim();
+
+        if (cat == 'instant' && validInstantTitles.contains(title)) {
+          list.add(QuestModel.fromMap(data, doc.id));
+        } else if (cat == 'custom' || (cat == 'instant' && !validInstantTitles.contains(title))) {
+          // Eski manuel veya 'yy' gibi yabancı görevleri veritabanından kalıcı olarak temizle
+          doc.reference.delete();
+        }
+      }
+      return list;
+    });
   }
 
   /// Özel görevleri dinler (geriye dönük uyumluluk)
   Stream<List<QuestModel>> watchCustomQuests(String uid) => watchInstantQuests(uid);
 
-  /// Başlangıç anlık görevlerini oluşturur (varsa ekleme yapmaz)
+  List<QuestModel> _getInstantTemplatesForArea(String area, DateTime now) {
+    switch (area) {
+      case 'academic':
+        return [
+          QuestModel(
+            id: '',
+            title: '15 Dk Hızlı Ders Sprinti',
+            xpReward: 35,
+            category: 'instant',
+            iconName: 'school',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'knowledge',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 15,
+            unit: 'dk',
+          ),
+          QuestModel(
+            id: '',
+            title: '25 Dk Pomodoro Odak',
+            xpReward: 55,
+            category: 'instant',
+            iconName: 'timer',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'focus',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 25,
+            unit: 'dk',
+          ),
+          QuestModel(
+            id: '',
+            title: '1 Ders Seansı Notu Kaydet',
+            xpReward: 25,
+            category: 'instant',
+            iconName: 'edit_note',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'knowledge',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 1,
+            unit: 'adet',
+          ),
+        ];
+      case 'fitness':
+        return [
+          QuestModel(
+            id: '',
+            title: '1 Set Mola Egzersizi',
+            xpReward: 30,
+            category: 'instant',
+            iconName: 'fitness_center',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'strength',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 1,
+            unit: 'set',
+          ),
+          QuestModel(
+            id: '',
+            title: '15 Dk Tempolu Yürüyüş / Esneme',
+            xpReward: 35,
+            category: 'instant',
+            iconName: 'directions_walk',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'energy',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 15,
+            unit: 'dk',
+          ),
+          QuestModel(
+            id: '',
+            title: '20 Şınav veya 40 Sn Plank',
+            xpReward: 35,
+            category: 'instant',
+            iconName: 'bolt',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'strength',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 20,
+            unit: 'adet',
+          ),
+        ];
+      case 'coding':
+        return [
+          QuestModel(
+            id: '',
+            title: '15 Dk Kodlama Sprinti',
+            xpReward: 35,
+            category: 'instant',
+            iconName: 'code',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'focus',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 15,
+            unit: 'dk',
+          ),
+          QuestModel(
+            id: '',
+            title: '25 Dk Odaklı Hata Çözümü',
+            xpReward: 55,
+            category: 'instant',
+            iconName: 'bug_report',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'focus',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 25,
+            unit: 'dk',
+          ),
+          QuestModel(
+            id: '',
+            title: '1 Kod Seansı Notu Kaydet',
+            xpReward: 25,
+            category: 'instant',
+            iconName: 'edit_note',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'knowledge',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 1,
+            unit: 'adet',
+          ),
+        ];
+      case 'reading':
+        return [
+          QuestModel(
+            id: '',
+            title: '5 Sayfa Kitap Oku',
+            xpReward: 30,
+            category: 'instant',
+            iconName: 'menu_book',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'knowledge',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 5,
+            unit: 'sayfa',
+          ),
+          QuestModel(
+            id: '',
+            title: '15 Dk Odaklı Okuma',
+            xpReward: 35,
+            category: 'instant',
+            iconName: 'auto_stories',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'knowledge',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 15,
+            unit: 'dk',
+          ),
+          QuestModel(
+            id: '',
+            title: '1 Alıntı veya Not Kaydet',
+            xpReward: 25,
+            category: 'instant',
+            iconName: 'bookmark',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'focus',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 1,
+            unit: 'adet',
+          ),
+        ];
+      case 'universal':
+      default:
+        return [
+          QuestModel(
+            id: '',
+            title: '1 Bardak Su İç & Esne',
+            xpReward: 20,
+            category: 'instant',
+            iconName: 'water_drop',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'energy',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 1,
+            unit: 'bardak',
+          ),
+          QuestModel(
+            id: '',
+            title: '5 Dk Zihinsel Mola & Nefes',
+            xpReward: 20,
+            category: 'instant',
+            iconName: 'self_improvement',
+            isCompleted: false,
+            createdAt: now,
+            statBoost: 'energy',
+            progress: 0.0,
+            currentValue: 0,
+            targetValue: 5,
+            unit: 'dk',
+          ),
+        ];
+    }
+  }
+
+  /// Günlük Anlık Görevleri otomatik yönetir (Bugüne ait yoksa veya dünden kalmışsa sıfırlayıp 3 yeni rastgele görev atar)
   Future<void> ensureInstantQuests(String uid) async {
-    final existing = await _questsCol(uid).get();
-    final hasInstant = existing.docs.any((d) {
-      final cat = d.data()['category'];
-      return cat == 'instant' || cat == 'custom';
-    });
-    if (!hasInstant) {
-      final starterInstant = [
-        QuestModel(
-          id: '',
-          title: '15 Dk Hızlı Odak Sprinti',
-          xpReward: 65,
-          category: 'instant',
-          iconName: 'timer',
-          isCompleted: false,
-          createdAt: DateTime.now(),
-          statBoost: 'focus',
-          progress: 0.0,
-          currentValue: 0,
-          targetValue: 15,
-          unit: 'dk',
-        ),
-        QuestModel(
-          id: '',
-          title: '1 Bardak Su İç & Esne',
-          xpReward: 35,
-          category: 'instant',
-          iconName: 'water_drop',
-          isCompleted: false,
-          createdAt: DateTime.now(),
-          statBoost: 'energy',
-          progress: 0.0,
-          currentValue: 0,
-          targetValue: 1,
-          unit: 'bardak',
-        ),
-        QuestModel(
-          id: '',
-          title: 'Hızlı Soru / Kod İncelemesi',
-          xpReward: 55,
-          category: 'instant',
-          iconName: 'school',
-          isCompleted: false,
-          createdAt: DateTime.now(),
-          statBoost: 'knowledge',
-          progress: 0.0,
-          currentValue: 0,
-          targetValue: 1,
-          unit: 'problem',
-        ),
-      ];
-      for (final q in starterInstant) {
-        await addQuest(uid, q);
+    final now = DateTime.now();
+    final startOfToday = DateTime(now.year, now.month, now.day);
+    final startOfTomorrow = startOfToday.add(const Duration(days: 1));
+
+    final existingSnap = await _questsCol(uid).get();
+
+    // 1. Temizlik: Dünden kalan eski anlık görevleri veya geçersiz görevleri sil
+    final List<DocumentSnapshot<Map<String, dynamic>>> todayInstants = [];
+    for (final doc in existingSnap.docs) {
+      final data = doc.data();
+      final cat = data['category'] as String?;
+      final title = (data['title'] as String? ?? '').trim();
+      final createdAtTs = data['createdAt'] as Timestamp?;
+      final createdAt = createdAtTs?.toDate() ?? now;
+
+      final isInstant = cat == 'instant';
+      final isValidTitle = validInstantTitles.contains(title);
+      final isFromToday = createdAt.isAfter(startOfToday.subtract(const Duration(seconds: 1))) &&
+          createdAt.isBefore(startOfTomorrow);
+
+      if (cat == 'custom' || (isInstant && !isValidTitle) || (isInstant && !isFromToday)) {
+        await doc.reference.delete();
+      } else if (isInstant && isValidTitle && isFromToday) {
+        todayInstants.add(doc);
       }
     }
+
+    // Bugün için atanmış anlık görevler varsa dokunma (günün devam eden görevleri)
+    if (todayInstants.isNotEmpty) return;
+
+    // 2. Kullanıcının odak alanlarını çek ve kişisel torbayı hazırla
+    final user = await _userRepository.getUser(uid);
+    final focusAreas = (user?.focusAreas ?? []).where((a) => a != 'skipped').toList();
+
+    final List<QuestModel> bag = [];
+    if (focusAreas.isEmpty) {
+      for (final a in ['academic', 'fitness', 'coding', 'reading']) {
+        bag.addAll(_getInstantTemplatesForArea(a, now));
+      }
+    } else {
+      for (final a in focusAreas) {
+        bag.addAll(_getInstantTemplatesForArea(a, now));
+      }
+    }
+    // Evrensel sürpriz mola/sağlık görevlerini de ekle
+    bag.addAll(_getInstantTemplatesForArea('universal', now));
+
+    // 3. Torbayı rastgele karıştır
+    bag.shuffle(Random());
+
+    // 4. Benzersiz ilk 3 görevi seç
+    final List<QuestModel> selected = [];
+    final Set<String> pickedTitles = {};
+    for (final q in bag) {
+      if (!pickedTitles.contains(q.title)) {
+        pickedTitles.add(q.title);
+        selected.add(q);
+        if (selected.length == 3) break;
+      }
+    }
+
+    // 5. Firestore'a toplu (batch) yaz
+    final batch = _db.batch();
+    for (final q in selected) {
+      batch.set(_questsCol(uid).doc(), q.toMap());
+    }
+    await batch.commit();
   }
 
   /// Yeni görev ekler (auto-generated ID)
@@ -130,6 +398,10 @@ class QuestRepository {
     await _userRepository.addXp(uid, quest.xpReward);
     await _userRepository.boostStat(uid, quest.statBoost, 1);
     await _userRepository.incrementCounter(uid, 'totalQuestsCompleted', 1);
+
+    // Kademeli adil altın ödülü ver (XP eşiklerine göre: 10, 20, 30, 45, 70 Altın)
+    final goldReward = QuestXpCalculator.calculateGold(xpReward: quest.xpReward);
+    await _userRepository.addGold(uid, goldReward);
 
     // Sandık ödülü ver
     String chestRarity = 'common';

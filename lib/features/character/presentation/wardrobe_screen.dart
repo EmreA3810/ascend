@@ -75,20 +75,6 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
     }
   }
 
-  // 150 Altın Karşılığında Rastgele Sandık Al
-  void _buyRandomChestAction(UserModel user) async {
-    if (!_canAfford(user, 150)) {
-      _showErrorSnackBar('Yetersiz Altın! Rastgele Sandık almak için 150 Altın gerekir.');
-      return;
-    }
-
-    final repo = ref.read(userRepositoryProvider);
-    await repo.spendGold(user.uid, 150);
-    await repo.addChest(user.uid, 'random');
-
-    _showSuccessSnackBar('150 Altın harcanarak Rastgele Şans Sandığı satın alındı! 🎁');
-  }
-
   // Sandık Açma Animasyonu ve Ödül Belirleme
   void _openChestAction(UserModel user, String rarityKey) async {
     setState(() {
@@ -404,18 +390,24 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
                           'Sandık Envanteri 📦',
                           style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                         ),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.secondary.withValues(alpha: 0.15),
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.secondary,
-                            side: const BorderSide(color: AppColors.secondary),
+                            side: BorderSide(color: AppColors.secondary.withValues(alpha: 0.5)),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           ),
-                          onPressed: () => _buyRandomChestAction(user),
-                          icon: const Icon(Icons.shopping_bag_rounded, size: 16),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ShopScreen(initialTabIndex: 2),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.storefront_rounded, size: 16),
                           label: Text(
-                            '150 Altın ile Sandık Al',
+                            'Dükkandan Sandık Al 🛍️',
                             style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.bold),
                           ),
                         ),

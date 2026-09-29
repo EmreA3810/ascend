@@ -33,6 +33,20 @@ class _MainShellState extends ConsumerState<MainShell> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final u = ref.read(currentUserProvider).value;
+      if (u != null) {
+        ref.read(questRepositoryProvider).ensureDailyQuests(u.uid);
+        ref.read(questRepositoryProvider).ensureWeeklyQuests(u.uid);
+        ref.read(questRepositoryProvider).ensureInstantQuests(u.uid);
+        ref.read(achievementRepositoryProvider).initializeAchievements(u.uid);
+      }
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final userAsync = ref.watch(currentUserProvider);
     final user = userAsync.value;
@@ -44,6 +58,7 @@ class _MainShellState extends ConsumerState<MainShell> {
       if (u != null) {
         ref.read(questRepositoryProvider).ensureDailyQuests(u.uid);
         ref.read(questRepositoryProvider).ensureWeeklyQuests(u.uid);
+        ref.read(questRepositoryProvider).ensureInstantQuests(u.uid);
         ref.read(achievementRepositoryProvider).initializeAchievements(u.uid);
 
         final oldUser = previous?.value;

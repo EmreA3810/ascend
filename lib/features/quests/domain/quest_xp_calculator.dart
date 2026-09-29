@@ -151,4 +151,19 @@ class QuestXpCalculator {
       return Colors.grey.shade400;
     }
   }
+
+  /// Görev ödülü XP miktarına göre adil altın miktarını hesaplar
+  static int calculateGold({required int xpReward}) {
+    if (xpReward >= 200) {
+      return 70;
+    } else if (xpReward >= 100) {
+      return 45;
+    } else if (xpReward >= 75) {
+      return 30;
+    } else if (xpReward >= 50) {
+      return 20;
+    } else {
+      return 10;
+    }
+  }
 }

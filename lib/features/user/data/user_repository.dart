@@ -114,9 +114,16 @@ class UserRepository {
     final startOfWeek = getStartOfWeek();
     int baseWeeklyXp = user.weeklyXp;
     DateTime? lastReset = user.lastWeeklyReset;
+    bool hasClaimedLeagueReward = user.hasClaimedLeagueReward;
+    String? lastLeagueTier = user.lastLeagueTier;
 
     if (lastReset == null || lastReset.isBefore(startOfWeek)) {
       // Yeni hafta! Eski haftanın XP'si sıfırlanıp yeni XP sıfırın üzerine eklenir.
+      if (lastReset != null) {
+        // Önceki haftadan kalan lig seviyesi için ödül talep edilmeye hazır
+        lastLeagueTier = user.leagueTier;
+        hasClaimedLeagueReward = false;
+      }
       baseWeeklyXp = 0;
       lastReset = startOfWeek;
     }
@@ -134,6 +141,8 @@ class UserRepository {
       'weeklyXp': newWeeklyXp,
       'lastWeeklyReset': Timestamp.fromDate(lastReset),
       'leagueTier': newLeague,
+      'hasClaimedLeagueReward': hasClaimedLeagueReward,
+      'lastLeagueTier': lastLeagueTier,
     };
     if (newLevel > user.level) {
       updateData['hasClaimedLegacyStats'] = true;
@@ -141,8 +150,7 @@ class UserRepository {
 
     await updateUser(uid, updateData);
 
-    // XP kazanıldığında otomatik altın ver (1 XP = 1 Altın)
-    await addGold(uid, xpAmount);
+    // Seri güncellemesi
     await updateStreak(uid);
   }
 
@@ -159,9 +167,9 @@ class UserRepository {
   }
 
   String _calcLeague(int weeklyXp) {
-    if (weeklyXp >= 2500) return 'elmas';
-    if (weeklyXp >= 1200) return 'altin';
-    if (weeklyXp >= 500) return 'gumus';
+    if (weeklyXp >= 4000) return 'elmas';
+    if (weeklyXp >= 2000) return 'altin';
+    if (weeklyXp >= 750) return 'gumus';
     return 'bronz';
   }
 
@@ -282,14 +290,60 @@ class UserRepository {
 
     final startOfWeek = getStartOfWeek();
     if (user.lastWeeklyReset == null || user.lastWeeklyReset!.isBefore(startOfWeek)) {
+      final isTransition = user.lastWeeklyReset != null;
       await updateUser(uid, {
         'weeklyXp': 0,
         'lastWeeklyReset': Timestamp.fromDate(startOfWeek),
         'leagueTier': _calcLeague(0),
+        'hasClaimedLeagueReward': !isTransition,
+        'lastLeagueTier': isTransition ? user.leagueTier : null,
       });
       return true; // Yeni haftaya geçildi ve sıfırlandı
     }
     return false;
+  }
+
+  /// Haftalık lig ödülünü talep et (Altın ve Sandık verir)
+  Future<Map<String, dynamic>> claimLeagueReward(String uid, String tier) async {
+    int goldReward = 20;
+    String? chestReward;
+
+    switch (tier.toLowerCase()) {
+      case 'elmas':
+        goldReward = 200;
+        chestReward = 'rare';
+        break;
+      case 'altin':
+        goldReward = 100;
+        chestReward = 'uncommon';
+        break;
+      case 'gumus':
+        goldReward = 50;
+        chestReward = 'common';
+        break;
+      case 'bronz':
+      default:
+        goldReward = 20;
+        chestReward = null;
+        break;
+    }
+
+    final updates = <String, dynamic>{
+      'gold': FieldValue.increment(goldReward),
+      'hasClaimedLeagueReward': true,
+    };
+
+    if (chestReward != null) {
+      updates['chestsEarned.$chestReward'] = FieldValue.increment(1);
+    }
+
+    await _userDoc(uid).update(updates);
+
+    return {
+      'gold': goldReward,
+      'chest': chestReward,
+      'tier': tier,
+    };
   }
 
   /// Belirli bir stat'ı artır (FieldValue.increment kullanır)
@@ -313,7 +367,7 @@ class UserRepository {
     });
   }
 
-  /// Altın ekle (1 XP = 1 Altın veya sandık satışından)
+  /// Altın ekle (görev tamamlama, lig ödülü veya sandık satışından)
   Future<void> addGold(String uid, int amount) async {
     await _userDoc(uid).update({
       'gold': FieldValue.increment(amount),

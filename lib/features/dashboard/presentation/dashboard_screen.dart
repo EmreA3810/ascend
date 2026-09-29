@@ -25,6 +25,8 @@ import '../../leaderboard/presentation/leaderboard_screen.dart';
 import '../../user/data/user_repository.dart';
 import '../../../core/services/focus_area_stat_service.dart';
 import '../../character/presentation/widgets/title_selection_sheet.dart';
+import '../../leaderboard/presentation/widgets/league_reward_dialog.dart';
+import '../../quests/domain/quest_xp_calculator.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -177,6 +179,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         final streakResult = await repo.checkAndValidateStreak(user.uid);
         
         _showStreakFeedback(resetDone, streakResult);
+
+        // 3. Haftalık lig ödülü denetimi ve kutlama diyaloğu
+        final activeUser = resetDone ? await repo.getUser(user.uid) : user;
+        if (activeUser != null && !activeUser.hasClaimedLeagueReward && activeUser.lastLeagueTier != null) {
+          await Future.delayed(const Duration(milliseconds: 600));
+          if (context.mounted) {
+            LeagueRewardDialog.show(
+              context,
+              uid: activeUser.uid,
+              leagueTier: activeUser.lastLeagueTier!,
+            );
+          }
+        }
       }
     });
 
@@ -320,6 +335,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       expandedHeight: 0,
       floating: true,
       backgroundColor: AppColors.background,
+      automaticallyImplyLeading: false,
+      titleSpacing: 16,
       title: ShaderMask(
         shaderCallback: (bounds) => const LinearGradient(
           colors: [AppColors.primary, AppColors.secondary],
@@ -373,7 +390,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               children: [
                 const Icon(Icons.storefront_rounded, color: Colors.amber, size: 16),
                 const SizedBox(width: 4),
-                Text('${user.gold}', style: GoogleFonts.inter(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13)),
+                Text(
+                  user.gold >= 100000
+                      ? '${(user.gold / 1000).toStringAsFixed(1)}k'
+                      : NumberFormat.decimalPattern('tr_TR').format(user.gold),
+                  style: GoogleFonts.inter(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13),
+                ),
               ],
             ),
           ),
@@ -1180,7 +1202,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                       ),
                     ),
                     Text(
-                      '+${quest.xpReward} 🪙',
+                      '+${QuestXpCalculator.calculateGold(xpReward: quest.xpReward)} 🪙',
                       style: GoogleFonts.inter(
                         color: Colors.amber,
                         fontWeight: FontWeight.w600,

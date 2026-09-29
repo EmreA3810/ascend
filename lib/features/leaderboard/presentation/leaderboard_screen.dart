@@ -272,8 +272,8 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> with Tick
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '🟢 İlk 3: Üst Lige Terfi & Altın Ödülü',
-                style: GoogleFonts.inter(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                _getTierRewardText(leagueTier),
+                style: GoogleFonts.inter(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.bold),
               ),
               Text(
                 '⚡ Toplam: ${tierUsers.length} Savaşçı',
@@ -305,6 +305,20 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> with Tick
           _buildPinnedUserBar(userRankIndex + 1, tierUsers[userRankIndex]),
       ],
     );
+  }
+
+  String _getTierRewardText(String tier) {
+    switch (tier.toLowerCase()) {
+      case 'elmas':
+        return '🎁 Lig Ödülü: 200 🪙 + Nadir Sandık 💎';
+      case 'altin':
+        return '🎁 Lig Ödülü: 100 🪙 + Sıradışı Sandık 🟢';
+      case 'gumus':
+        return '🎁 Lig Ödülü: 50 🪙 + Sıradan Sandık 📦';
+      case 'bronz':
+      default:
+        return '🎁 Lig Ödülü: 20 🪙 Altın';
+    }
   }
 
   Widget _buildDynamicRealPodium(List<UserModel> warriors, UserModel currentUser) {

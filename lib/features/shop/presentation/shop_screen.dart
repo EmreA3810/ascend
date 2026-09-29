@@ -9,7 +9,8 @@ import '../data/companion_data.dart';
 import 'companion_widget.dart';
 
 class ShopScreen extends ConsumerStatefulWidget {
-  const ShopScreen({super.key});
+  final int initialTabIndex;
+  const ShopScreen({super.key, this.initialTabIndex = 0});
 
   @override
   ConsumerState<ShopScreen> createState() => _ShopScreenState();
@@ -22,7 +23,11 @@ class _ShopScreenState extends ConsumerState<ShopScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(
+      length: 3,
+      vsync: this,
+      initialIndex: widget.initialTabIndex.clamp(0, 2),
+    );
   }
 
   @override
@@ -727,14 +732,44 @@ class _ShopScreenState extends ConsumerState<ShopScreen>
       children: [
         _buildChestCard(
           user: user,
+          rarity: 'common',
+          name: 'Sıradan Ekipman Sandığı',
+          cost: 100,
+          color: Colors.grey.shade400,
+          icon: '📦',
+          perks: 'İçerisinden Sıradan Seviye Şapka, Zırh veya Pantolon çıkar.',
+        ),
+        const SizedBox(height: 14),
+        _buildChestCard(
+          user: user,
+          rarity: 'uncommon',
+          name: 'Sıradışı Macera Sandığı',
+          cost: 200,
+          color: Colors.greenAccent,
+          icon: '🟢',
+          perks: 'İçerisinden Sıradışı Seviye Ekipmanlar ve Hoş Kozmetikler çıkar.',
+        ),
+        const SizedBox(height: 14),
+        _buildChestCard(
+          user: user,
           rarity: 'rare',
           name: 'Nadir Ekipman Sandığı',
           cost: 400,
           color: Colors.blueAccent,
-          icon: '📦',
+          icon: '🔷',
           perks: 'İçerisinden Nadir Seviye Şapka, Zırh veya Pantolon çıkar.',
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 14),
+        _buildChestCard(
+          user: user,
+          rarity: 'epic',
+          name: 'Epik Savaşçı Sandığı',
+          cost: 650,
+          color: Colors.purpleAccent,
+          icon: '🟣',
+          perks: 'İçerisinden Epik Seviye Güçlü Ekipmanlar ve Stat artışları çıkar.',
+        ),
+        const SizedBox(height: 14),
         _buildChestCard(
           user: user,
           rarity: 'legendary',
@@ -744,6 +779,17 @@ class _ShopScreenState extends ConsumerState<ShopScreen>
           icon: '👑',
           perks:
               'İçerisinden Efsanevi Seviye Işıltılı Kozmetikler & Muazzam Stat artışları çıkar.',
+        ),
+        const SizedBox(height: 14),
+        _buildChestCard(
+          user: user,
+          rarity: 'random',
+          name: 'Rastgele Şans Sandığı',
+          cost: 250,
+          color: Colors.amberAccent,
+          icon: '🎲',
+          perks:
+              'Şansına güven! %2 Efsanevi, %8 Epik, %15 Nadir, %25 Sıradışı, %50 Sıradan eşya çıkma şansı.',
         ),
       ],
     );

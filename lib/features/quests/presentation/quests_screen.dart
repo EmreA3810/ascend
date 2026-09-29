@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -8,6 +9,7 @@ import '../data/quest_model.dart';
 import '../providers/quest_provider.dart';
 import '../../user/providers/user_provider.dart';
 import 'add_quest_sheet.dart';
+import '../domain/quest_xp_calculator.dart';
 
 class QuestsScreen extends ConsumerStatefulWidget {
   const QuestsScreen({super.key});
@@ -23,6 +25,9 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final user = ref.read(currentUserProvider).value;
       if (user != null) {
@@ -50,11 +55,12 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
     final cleanUnit = quest.unit.trim().toLowerCase();
     final lowerTitle = quest.title.toLowerCase();
 
-    // Antrenman, spor ve set bazlı görevlerde manuel artı butonu olmamalı (Antrenman Koçu ile yapılır)
-    if (cleanUnit == 'set' ||
-        lowerTitle.contains('antrenman') ||
-        lowerTitle.contains('spor') ||
-        lowerTitle.contains('fitness')) {
+    // Antrenman, spor ve set bazlı günlük/haftalık görevlerde manuel artı butonu olmamalı (Antrenman Koçu ile yapılır)
+    if (quest.category != 'instant' &&
+        (cleanUnit == 'set' ||
+            lowerTitle.contains('antrenman') ||
+            lowerTitle.contains('spor') ||
+            lowerTitle.contains('fitness'))) {
       return false;
     }
 
@@ -68,8 +74,8 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
       return false;
     }
 
-    // Yalnızca su içme, sayfa okuma veya adet bazlı basit alışkanlıklar manuel tıklanabilir
-    return cleanUnit == 'bardak' || cleanUnit == 'adet' || cleanUnit == 'sayfa';
+    // Yalnızca su içme, sayfa okuma, set veya adet bazlı basit alışkanlıklar manuel tıklanabilir
+    return cleanUnit == 'bardak' || cleanUnit == 'adet' || cleanUnit == 'sayfa' || cleanUnit == 'set';
   }
 
   Future<void> _incrementProgress(String uid, QuestModel quest) async {
@@ -130,17 +136,25 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF10B981),
-        elevation: 6,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: const Icon(Icons.add, color: Colors.white, size: 28),
-        onPressed: () {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (ctx) => const AddQuestBottomSheet(),
+      floatingActionButton: ListenableBuilder(
+        listenable: _tabController,
+        builder: (context, _) {
+          if (_tabController.index == 2) {
+            return const SizedBox.shrink();
+          }
+          return FloatingActionButton(
+            backgroundColor: const Color(0xFF10B981),
+            elevation: 6,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: const Icon(Icons.add, color: Colors.white, size: 28),
+            onPressed: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (ctx) => const AddQuestBottomSheet(),
+              );
+            },
           );
         },
       ),
@@ -248,7 +262,7 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'ANLIK GÖREVLER (1.3x EKSTRA XP)',
+                            'ANLIK GÖREVLER (EKSTRA XP)',
                             style: GoogleFonts.inter(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -267,7 +281,15 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
                   ],
                 ),
               ),
-              if (quests.isEmpty)
+              if (quests.isEmpty) ...[
+                Builder(
+                  builder: (context) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      ref.read(questRepositoryProvider).ensureInstantQuests(uid);
+                    });
+                    return const SizedBox.shrink();
+                  },
+                ),
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
@@ -285,15 +307,18 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Ekstra hızlı XP ve sandık kazanmak için + butonundan anlık görev ekleyebilirsin.',
+                        'Anlık görevler sistem tarafından otomatik atanır. Düzenli olarak burayı kontrol et!',
                         textAlign: TextAlign.center,
                         style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 12),
                       ),
                     ],
                   ),
-                )
-              else
+                ),
+              ] else ...[
+                if (quests.isNotEmpty && quests.every((q) => q.isCompleted))
+                  const _InstantCooldownCard(),
                 ...quests.map((quest) => _buildQuestTile(uid, quest, accentColor: const Color(0xFF00E5FF))),
+              ],
             ],
           ),
         );
@@ -677,13 +702,27 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
                     color: accentColor.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(
-                    '+${quest.xpReward} XP',
-                    style: GoogleFonts.inter(
-                      color: accentColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '+${quest.xpReward} XP',
+                        style: GoogleFonts.inter(
+                          color: accentColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '+${QuestXpCalculator.calculateGold(xpReward: quest.xpReward)} 🪙',
+                        style: GoogleFonts.inter(
+                          color: Colors.amber,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 if (!isDone && quest.targetValue > 1 && _canManuallyIncrement(quest)) ...[
@@ -695,24 +734,29 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
                   ),
                   const SizedBox(width: 8),
                 ],
-                // Edit button
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined, color: AppColors.textSecondary, size: 18),
-                  onPressed: () {
-                    showModalBottomSheet(
-                      context: context,
-                      isScrollControlled: true,
-                      backgroundColor: Colors.transparent,
-                      builder: (ctx) => AddQuestBottomSheet(initialQuest: quest),
-                    );
-                  },
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                ),
-                const SizedBox(width: 8),
+                // Edit button (only for user daily/weekly quests, not for system instant quests)
+                if (quest.category != 'instant') ...[
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, color: AppColors.textSecondary, size: 18),
+                    onPressed: () {
+                      showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (ctx) => AddQuestBottomSheet(initialQuest: quest),
+                      );
+                    },
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 // Checkbox toggle (exact circular toggle matching weekly)
                 GestureDetector(
-                  onTap: (quest.targetValue > 1 || const ['dk', 'set', 'sayfa', 'problem', 'bardak', 'seans'].contains(quest.unit))
+                  onTap: (quest.targetValue > 1 ||
+                          (quest.category != 'instant' &&
+                              const ['dk', 'set', 'sayfa', 'problem', 'bardak', 'seans'].contains(quest.unit)) ||
+                          (quest.category == 'instant' && quest.unit == 'dk'))
                       ? () {
                           final isFitness = quest.unit == 'set' || quest.title.toLowerCase().contains('antrenman') || quest.title.toLowerCase().contains('spor');
                           ScaffoldMessenger.of(context).showSnackBar(
@@ -791,5 +835,102 @@ class _QuestsScreenState extends ConsumerState<QuestsScreen> with SingleTickerPr
 
   Widget _buildWeeklyQuestCard(String uid, QuestModel quest) {
     return _buildQuestTile(uid, quest, accentColor: Colors.orangeAccent);
+  }
+}
+
+class _InstantCooldownCard extends StatefulWidget {
+  const _InstantCooldownCard();
+
+  @override
+  State<_InstantCooldownCard> createState() => _InstantCooldownCardState();
+}
+
+class _InstantCooldownCardState extends State<_InstantCooldownCard> {
+  Timer? _timer;
+  Duration _remaining = Duration.zero;
+
+  @override
+  void initState() {
+    super.initState();
+    _calculateRemaining();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => _calculateRemaining());
+  }
+
+  void _calculateRemaining() {
+    final now = DateTime.now();
+    final tomorrow = DateTime(now.year, now.month, now.day + 1);
+    final diff = tomorrow.difference(now);
+    if (mounted) {
+      setState(() {
+        _remaining = diff.isNegative ? Duration.zero : diff;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hours = _remaining.inHours.toString().padLeft(2, '0');
+    final minutes = (_remaining.inMinutes % 60).toString().padLeft(2, '0');
+    final seconds = (_remaining.inSeconds % 60).toString().padLeft(2, '0');
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF10B981).withValues(alpha: 0.15),
+            const Color(0xFF00E5FF).withValues(alpha: 0.08),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF10B981).withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF10B981), size: 24),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Günün Tüm Anlık Görevleri Bitti! ⚡🏆',
+                  style: GoogleFonts.inter(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Yeni Görevler: $hours:$minutes:$seconds sonra ⏳',
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF00E5FF),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
