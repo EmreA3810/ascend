@@ -180,37 +180,37 @@ class CharacterScreen extends ConsumerWidget {
                       children: [
                         // Karakter altı hafif mistik zemin aurası/gölgesi
                         Container(
-                          width: 70,
-                          height: 14,
+                          width: 54,
+                          height: 10,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
                                 color: AppColors.secondary.withValues(alpha: 0.35),
-                                blurRadius: 18,
-                                spreadRadius: 3,
+                                blurRadius: 14,
+                                spreadRadius: 2,
                               ),
                             ],
                           ),
                         ),
                         // Tam boy ayakta karakter (kafası, şapkası, bedeni, pantolonu ve çizmeleri tam görünür)
                         SizedBox(
-                          width: 80,
-                          height: 125,
+                          width: 65,
+                          height: 96,
                           child: CharacterAvatar(
                             equippedItems: user.equippedItems,
-                            width: 80,
-                            height: 125,
+                            width: 65,
+                            height: 96,
                           ),
                         ),
                         // Varsa kuşanılmış yoldaş
                         if (companion != null)
                           Positioned(
                             right: -10,
-                            bottom: 6,
+                            bottom: 4,
                             child: CompanionWidget(
                               companion: companion,
-                              size: 28,
+                              size: 35,
                               showNameTag: false,
                             ),
                           ),

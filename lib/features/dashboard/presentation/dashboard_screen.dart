@@ -421,21 +421,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     clipBehavior: Clip.none,
                     children: [
                       SizedBox(
-                        width: 50,
-                        height: 70,
+                        width: 66,
+                        height: 96,
                         child: CharacterAvatar(
                           equippedItems: user.equippedItems,
-                          width: 50,
-                          height: 70,
+                          width: 66,
+                          height: 96,
                         ),
                       ),
                       if (user.equippedCompanion != null && CompanionData.getById(user.equippedCompanion) != null)
                         Positioned(
                           right: -10,
-                          bottom: 0,
+                          bottom: 2,
                           child: CompanionWidget(
                             companion: CompanionData.getById(user.equippedCompanion)!,
-                            size: 26,
+                            size: 34,
                             showNameTag: false,
                           ),
                         ),

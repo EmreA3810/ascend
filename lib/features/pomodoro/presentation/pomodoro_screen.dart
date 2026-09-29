@@ -428,6 +428,139 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     }
   }
 
+  Future<void> _confirmCancelSession() async {
+    final initialSeconds = (_isBreak ? _selectedBreakDuration : _selectedWorkDuration) * 60;
+    if (!_isRunning && _secondsLeft == initialSeconds) {
+      _cancelSession();
+      return;
+    }
+
+    final bool? shouldStop = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF161A26),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.white12),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.stop_rounded, color: Colors.redAccent, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Seansı Bitir?',
+              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Text(
+          'Devam eden seansı sonlandırmak istediğine emin misin? Şu anki ilerlemen kaydedilmeyecek.',
+          style: GoogleFonts.inter(color: Colors.white70, fontSize: 13, height: 1.4),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Vazgeç',
+              style: GoogleFonts.inter(color: Colors.white60, fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.redAccent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Bitir',
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldStop == true) {
+      _cancelSession();
+    }
+  }
+
+  Future<void> _confirmRestartSession() async {
+    final initialSeconds = (_isBreak ? _selectedBreakDuration : _selectedWorkDuration) * 60;
+    if (!_isRunning && _secondsLeft == initialSeconds) {
+      return;
+    }
+
+    final bool? shouldRestart = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF161A26),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: Colors.white12),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.secondary.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.restart_alt_rounded, color: AppColors.secondary, size: 24),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Baştan Başlat?',
+              style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Text(
+          'Süreyi başa sarmak istediğine emin misin? Mevcut seans sıfırlanacak.',
+          style: GoogleFonts.inter(color: Colors.white70, fontSize: 13, height: 1.4),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Vazgeç',
+              style: GoogleFonts.inter(color: Colors.white60, fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.secondary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Yeniden Başlat',
+              style: GoogleFonts.inter(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldRestart == true) {
+      _reset();
+    }
+  }
+
   void _showBossEscapedDialog(BossMonster boss) {
     if (!mounted) return;
     showDialog(
@@ -794,7 +927,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
   Widget _buildFocusModeSegmentedSwitch() {
     return Container(
-      margin: const EdgeInsets.only(bottom: 14),
+      margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: const Color(0xFF131826),
@@ -1324,7 +1457,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     ];
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 12),
+      margin: const EdgeInsets.only(bottom: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: areas.map((area) {
@@ -2686,6 +2819,10 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
   void _reset() {
     _timer?.cancel();
+    _sessionEndTime = null;
+    if (_selectedFocusMode == 'zen') {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+    }
     _updateState(() {
       _secondsLeft = _isBreak ? _selectedBreakDuration * 60 : _selectedWorkDuration * 60;
       _isRunning = false;
@@ -3464,131 +3601,8 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
     );
   }
 
-  Widget _buildMusicControlsCard() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.secondary.withValues(alpha: 0.15)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    _playlist[_currentTrackIndex]['icon'] as IconData? ?? Icons.music_note_rounded,
-                    color: _isMusicPlaying ? AppColors.secondary : AppColors.textSecondary,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _playlist[_currentTrackIndex]['name'] as String,
-                        style: GoogleFonts.inter(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                      Text(
-                        _isMusicPlaying ? 'Çalıyor (Kesintisiz Döngü)' : 'Duraklatıldı',
-                        style: GoogleFonts.inter(
-                          color: _isMusicPlaying ? AppColors.secondary : AppColors.textSecondary,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.skip_previous_rounded, color: Colors.white, size: 22),
-                    onPressed: _prevTrack,
-                    tooltip: 'Önceki Parça',
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      _isMusicPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
-                      color: AppColors.secondary,
-                      size: 32,
-                    ),
-                    onPressed: _toggleMusic,
-                    tooltip: _isMusicPlaying ? 'Durdur' : 'Çal',
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 22),
-                    onPressed: _nextTrack,
-                    tooltip: 'Sonraki Parça',
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: List.generate(_playlist.length, (i) {
-                final track = _playlist[i];
-                final isSel = _currentTrackIndex == i;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: FilterChip(
-                    showCheckmark: false,
-                    avatar: Icon(
-                      track['icon'] as IconData? ?? Icons.music_note_rounded,
-                      size: 14,
-                      color: isSel ? Colors.white : AppColors.textSecondary,
-                    ),
-                    label: Text(track['name'] as String),
-                    selected: isSel,
-                    onSelected: (_) => _selectTrack(i),
-                    backgroundColor: AppColors.background,
-                    selectedColor: AppColors.secondary.withValues(alpha: 0.35),
-                    labelStyle: GoogleFonts.inter(
-                      color: isSel ? Colors.white : AppColors.textSecondary,
-                      fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                      fontSize: 11,
-                    ),
-                    side: BorderSide(
-                      color: isSel ? AppColors.secondary : Colors.white10,
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              const Icon(Icons.volume_down_rounded, color: AppColors.textSecondary, size: 16),
-              Expanded(
-                child: Slider(
-                  value: _volume,
-                  min: 0.0,
-                  max: 1.0,
-                  activeColor: AppColors.secondary,
-                  inactiveColor: AppColors.background,
-                  onChanged: _setVolume,
-                ),
-              ),
-              const Icon(Icons.volume_up_rounded, color: AppColors.textSecondary, size: 16),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
+
+
 
   // --- ZEN MODU: Müzik Seçici Modalı ---
   void _showZenMusicPicker(BuildContext context) {
@@ -3896,6 +3910,13 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // Yeniden Başlat (Restart)
+                    IconButton(
+                      onPressed: _confirmRestartSession,
+                      tooltip: 'Baştan Başlat',
+                      icon: const Icon(Icons.restart_alt_rounded, size: 26, color: Colors.white70),
+                    ),
+                    const SizedBox(width: 14),
                     // Duraklat / Devam Et
                     GestureDetector(
                       onTap: _startPause,
@@ -3914,10 +3935,10 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
                         ),
                       ),
                     ),
-                    const SizedBox(width: 18),
-                    // Seansı Bitir / Kaç
+                    const SizedBox(width: 14),
+                    // Seansı Bitir (Kare Stop)
                     GestureDetector(
-                      onTap: _cancelSession,
+                      onTap: _confirmCancelSession,
                       child: Container(
                         width: 46,
                         height: 46,
@@ -4075,9 +4096,6 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
         const SizedBox(height: 16),
 
         _buildCategoryAssistantCard(),
-        const SizedBox(height: 16),
-
-        _buildMusicControlsCard(),
       ],
     );
   }
@@ -4175,11 +4193,11 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Erken Bitir / Kaç
+            // Yeniden Başlat (Restart)
             IconButton(
-              onPressed: _cancelSession,
-              tooltip: 'Seansı Bitir',
-              icon: const Icon(Icons.stop_circle_outlined, size: 30, color: Colors.white60),
+              onPressed: _confirmRestartSession,
+              tooltip: 'Baştan Başlat',
+              icon: const Icon(Icons.restart_alt_rounded, size: 28, color: Colors.white70),
             ),
             const SizedBox(width: 16),
             // Başlat / Duraklat
@@ -4210,6 +4228,13 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
                 ),
               ),
             ),
+            const SizedBox(width: 16),
+            // Seansı Bitir (Kare Stop)
+            IconButton(
+              onPressed: _confirmCancelSession,
+              tooltip: 'Seansı Bitir',
+              icon: const Icon(Icons.stop_rounded, size: 30, color: Colors.white70),
+            ),
           ],
         ),
         const SizedBox(height: 20),
@@ -4220,10 +4245,6 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
 
         // 5. Kategori Asistanı
         _buildCategoryAssistantCard(),
-        const SizedBox(height: 16),
-
-        // 6. Müzik Seçim Kartı
-        _buildMusicControlsCard(),
       ],
     );
   }
@@ -4256,13 +4277,16 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
       appBar: AppBar(
         backgroundColor: AppColors.background,
         elevation: 0,
+        toolbarHeight: 40,
         title: Text(
           _selectedFocusMode == 'zen' ? 'Zen Odak' : 'Pomodoro İstasyonu',
-          style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: Colors.white),
+          style: GoogleFonts.inter(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.history_rounded, color: Colors.white70),
+            icon: const Icon(Icons.history_rounded, color: Colors.white70, size: 20),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             onPressed: () {
               showModalBottomSheet(
                 context: context,
@@ -4276,35 +4300,19 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // 1. Mod Anahtarı: Savaş Modu | Zen Modu
             if (_selectedFocusArea != 'fitness') ...[
               _buildFocusModeSegmentedSwitch(),
-              const SizedBox(height: 6),
             ],
 
-            // 2. Track Info Bar
-            Text(
-              _isMusicPlaying
-                  ? "Active Soft Track: ${_playlist[_currentTrackIndex]['name']}"
-                  : "Music Paused 🎵",
-              textAlign: TextAlign.center,
-              style: GoogleFonts.inter(
-                color: AppColors.secondary,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            // 3. Focus Area Selector
+            // 2. Focus Area Selector
             _buildFocusAreaSelector(),
-            const SizedBox(height: 12),
 
-            // 4. Mod Görünümleri: Fitness vs Zen vs Savaş
+            // 3. Mod Görünümleri: Fitness vs Zen vs Savaş
             if (_selectedFocusArea == 'fitness') ...[
               _buildWorkoutAssistant(user.uid, user.level),
             ] else if (_selectedFocusMode == 'zen') ...[
@@ -4312,7 +4320,7 @@ class _PomodoroScreenState extends ConsumerState<PomodoroScreen> with TickerProv
             ] else ...[
               _buildBattleModeView(user, accentColor),
             ],
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
 
             // Horizontal Completed Sessions List Header
             Row(

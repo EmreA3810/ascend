@@ -27,14 +27,14 @@ class FocusAreaEditSheet {
       {
         'id': 'reading',
         'label': 'Kişisel Gelişim & Okuma',
-        'desc': 'Bilgi (KNW) ve Odak (FOC) artırır',
+        'desc': 'Bilgi (KNW) ve Güç (STR / İrade) artırır',
         'icon': Icons.menu_book_rounded,
         'color': AppColors.primary,
       },
       {
         'id': 'coding',
         'label': 'Yazılım & Kariyer / İş',
-        'desc': 'Odak (FOC) ve Bilgi (KNW) artırır',
+        'desc': 'Odak (FOC) ve Enerji (ENG) artırır',
         'icon': Icons.code_rounded,
         'color': AppColors.statFocus,
       },

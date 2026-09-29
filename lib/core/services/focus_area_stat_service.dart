@@ -39,14 +39,14 @@ class FocusAreaStatService {
       label: 'Kişisel Gelişim & Okuma',
       icon: Icons.menu_book_rounded,
       color: AppColors.primary,
-      primaryStats: ['knowledge', 'focus'],
+      primaryStats: ['knowledge', 'strength'],
     ),
     'coding': FocusAreaConfig(
       id: 'coding',
       label: 'Yazılım & Kariyer / İş',
       icon: Icons.code_rounded,
       color: AppColors.statFocus,
-      primaryStats: ['focus', 'knowledge'],
+      primaryStats: ['focus', 'energy'],
     ),
   };
 
@@ -75,9 +75,9 @@ class FocusAreaStatService {
       case 'academic':
         return {'knowledge': 1, 'focus': 1};
       case 'reading':
-        return {'knowledge': 1, 'focus': 1};
+        return {'knowledge': 1, 'strength': 1};
       case 'coding':
-        return {'focus': 1, 'knowledge': 1};
+        return {'focus': 1, 'energy': 1};
       default:
         return {'focus': 1};
     }

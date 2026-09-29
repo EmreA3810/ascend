@@ -121,39 +121,14 @@ class _CompanionWidgetState extends State<CompanionWidget> with SingleTickerProv
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(
+                  SizedBox(
                     width: widget.size,
                     height: widget.size,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          widget.companion.primaryColor.withValues(alpha: 0.25),
-                          widget.companion.primaryColor.withValues(alpha: 0.02),
-                        ],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: widget.companion.primaryColor.withValues(alpha: 0.25),
-                          blurRadius: 10,
-                          spreadRadius: 2,
-                        ),
-                      ],
-                      border: Border.all(
-                        color: widget.companion.primaryColor.withValues(alpha: 0.5),
-                        width: 1.2,
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: SizedBox(
-                      width: widget.size * 0.88,
-                      height: widget.size * 0.88,
-                      child: CustomPaint(
-                        size: Size(widget.size * 0.88, widget.size * 0.88),
-                        painter: CompanionPainter(
-                          companion: widget.companion,
-                          animationValue: _controller.value,
-                        ),
+                    child: CustomPaint(
+                      size: Size(widget.size, widget.size),
+                      painter: CompanionPainter(
+                        companion: widget.companion,
+                        animationValue: _controller.value,
                       ),
                     ),
                   ),

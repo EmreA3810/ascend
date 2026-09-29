@@ -13,6 +13,7 @@ import '../../../core/widgets/level_up_overlay.dart';
 import '../../user/data/user_model.dart';
 import '../../onboarding/presentation/focus_questionnaire_overlay.dart';
 import '../providers/shell_provider.dart';
+import '../../../core/widgets/global_top_music_bar.dart';
 import '../../../core/widgets/particle_background.dart';
 
 class MainShell extends ConsumerStatefulWidget {
@@ -67,11 +68,23 @@ class _MainShellState extends ConsumerState<MainShell> {
         children: [
           Positioned.fill(child: _buildAtmosphere()),
           const Positioned.fill(child: IgnorePointer(child: ParticleBackground())),
-          ..._screens.asMap().entries.map((entry) {
-            return Positioned.fill(
-              child: _buildScreenLayer(entry.key, entry.value, currentIndex),
-            );
-          }),
+          SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                const GlobalTopMusicBar(),
+                Expanded(
+                  child: Stack(
+                    children: _screens.asMap().entries.map((entry) {
+                      return Positioned.fill(
+                        child: _buildScreenLayer(entry.key, entry.value, currentIndex),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: _buildBottomNav(uncompletedCount, currentIndex),
