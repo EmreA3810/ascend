@@ -174,8 +174,10 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
   void _equipItemAction(UserModel user, LootItem item) async {
     final repo = ref.read(userRepositoryProvider);
     final currentEquipped = user.equippedItems[item.slot];
+    final bool isEquipped = currentEquipped == item.id ||
+        (item.id == 'baggy_pants' && currentEquipped == 'leather_greaves');
     
-    if (currentEquipped == item.id) {
+    if (isEquipped) {
       // Zaten kuşanılmışsa çıkar
       await repo.equipItem(user.uid, item.slot, '');
       _showSuccessSnackBar('${item.name} çıkarıldı.');
@@ -567,8 +569,14 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
                       itemCount: LootPool.getItemsBySlot(_selectedSlot).length,
                       itemBuilder: (ctx, idx) {
                         final item = LootPool.getItemsBySlot(_selectedSlot)[idx];
-                        final isUnlocked = user.unlockedItems.contains(item.id);
-                        final isEquipped = user.equippedItems[item.slot] == item.id;
+                        final isUnlocked = user.unlockedItems.contains(item.id) ||
+                            (item.id == 'baggy_pants' && user.unlockedItems.contains('leather_greaves'));
+                        final isEquipped = user.equippedItems[item.slot] == item.id ||
+                            (item.id == 'baggy_pants' && user.equippedItems[item.slot] == 'leather_greaves');
+
+                        final isBaggyItem = item.id == 'baggy_pants' || item.id == 'leather_greaves';
+                        final itemDisplayColor = isBaggyItem ? const Color(0xFF1E3A8A) : item.color;
+                        final itemDisplayName = isBaggyItem ? 'Baggy Pantolon 👖' : item.name;
 
                         return Container(
                           padding: const EdgeInsets.all(12),
@@ -609,27 +617,28 @@ class _WardrobeScreenState extends ConsumerState<WardrobeScreen> with SingleTick
                                 ],
                               ),
                               const SizedBox(height: 6),
+
                               Center(
                                 child: Container(
                                   width: 50,
                                   height: 50,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: item.color.withValues(alpha: 0.15),
-                                    border: Border.all(color: item.color.withValues(alpha: 0.3)),
+                                    color: itemDisplayColor.withValues(alpha: 0.15),
+                                    border: Border.all(color: itemDisplayColor.withValues(alpha: 0.3)),
                                   ),
                                   child: Icon(
                                     _selectedSlot == 'hat'
                                         ? Icons.face_rounded
                                         : (_selectedSlot == 'torso' ? Icons.checkroom : Icons.wc),
-                                    color: item.color,
+                                    color: itemDisplayColor,
                                     size: 26,
                                   ),
                                 ),
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                item.name,
+                                itemDisplayName,
                                 style: GoogleFonts.inter(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,

@@ -10,7 +10,7 @@ enum Rarity {
 
 class LootItem {
   final String id;
-  final String name;
+  final String _rawName;
   final String slot; // 'hat', 'torso', 'pants'
   final Rarity rarity;
   final int xpCost;
@@ -18,12 +18,19 @@ class LootItem {
 
   const LootItem({
     required this.id,
-    required this.name,
+    required String name,
     required this.slot,
     required this.rarity,
     required this.xpCost,
     required this.color,
-  });
+  }) : _rawName = name;
+
+  String get name {
+    if (id == 'baggy_pants' || id == 'leather_greaves' || _rawName.contains('Deri Pantolon')) {
+      return 'Baggy Pantolon 👖';
+    }
+    return _rawName;
+  }
 
   String get rarityName {
     switch (rarity) {
@@ -57,7 +64,7 @@ class LootItem {
 }
 
 class LootPool {
-  static final List<LootItem> items = [
+  static List<LootItem> get items => [
     // --- HATS (Şapkalar) ---
     LootItem(
       id: 'straw_hat',
@@ -248,12 +255,12 @@ class LootPool {
       color: Colors.blue.shade800,
     ),
     LootItem(
-      id: 'leather_greaves',
-      name: 'Deri Pantolon 🦿',
+      id: 'baggy_pants',
+      name: 'Baggy Pantolon 👖',
       slot: 'pants',
       rarity: Rarity.uncommon,
       xpCost: 200,
-      color: Colors.orange.shade900,
+      color: const Color(0xFF1E3A8A), // Koyu mavi indigon
     ),
     LootItem(
       id: 'cargo_pants',
@@ -306,8 +313,14 @@ class LootPool {
   ];
 
   static LootItem? getItemById(String id) {
+    if (id == 'leather_greaves') id = 'baggy_pants';
     for (final item in items) {
       if (item.id == id) return item;
+    }
+    if (id == 'baggy_pants' || id == 'leather_greaves') {
+      for (final item in items) {
+        if (item.id == 'baggy_pants' || item.id == 'leather_greaves') return item;
+      }
     }
     return null;
   }

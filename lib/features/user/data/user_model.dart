@@ -74,6 +74,17 @@ class UserModel {
     final rawEquipped = (map['equippedItems'] as Map<String, dynamic>?) ?? {};
     final rawChests = (map['chestsEarned'] as Map<String, dynamic>?) ?? {};
 
+    final rawUnlocked = List<String>.from(map['unlockedItems'] ?? const []);
+    if (rawUnlocked.contains('leather_greaves') && !rawUnlocked.contains('baggy_pants')) {
+      rawUnlocked.add('baggy_pants');
+    }
+    final equipped = rawEquipped.map((k, v) {
+      if (k == 'pants' && v == 'leather_greaves') {
+        return const MapEntry('pants', 'baggy_pants');
+      }
+      return MapEntry(k, v as String);
+    });
+
     return UserModel(
       uid: map['uid'] as String,
       displayName: map['displayName'] as String? ?? 'Savaşçı',
@@ -89,8 +100,8 @@ class UserModel {
       totalPomodoroSessions: (map['totalPomodoroSessions'] as num?)?.toInt() ?? 0,
       totalMinutesFocused: (map['totalMinutesFocused'] as num?)?.toInt() ?? 0,
       focusAreas: List<String>.from(map['focusAreas'] ?? const []),
-      unlockedItems: List<String>.from(map['unlockedItems'] ?? const []),
-      equippedItems: rawEquipped.map((k, v) => MapEntry(k, v as String)),
+      unlockedItems: rawUnlocked,
+      equippedItems: equipped,
       chestsEarned: rawChests.map((k, v) => MapEntry(k, (v as num).toInt())),
       gold: (map['gold'] as num?)?.toInt() ?? 0,
       statPoints: (map['statPoints'] as num?)?.toInt() ?? 0,

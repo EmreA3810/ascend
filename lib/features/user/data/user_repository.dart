@@ -414,8 +414,9 @@ class UserRepository {
 
   /// Ekipman kuşan/değiştir (slot: hat, torso, pants)
   Future<void> equipItem(String uid, String slot, String itemId) async {
+    final effectiveId = (slot == 'pants' && itemId == 'leather_greaves') ? 'baggy_pants' : itemId;
     await _userDoc(uid).update({
-      'equippedItems.$slot': itemId,
+      'equippedItems.$slot': effectiveId,
     });
   }
 
